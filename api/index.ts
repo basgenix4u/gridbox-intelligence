@@ -14,7 +14,11 @@
  * @module api/index
  */
 
-import { createApp } from "../server/app";
+// Relative imports in this graph carry an explicit `.js` extension on purpose:
+// `package.json` sets `"type": "module"`, so Vercel's Node builder emits real ESM
+// and traces files by specifier. Extensionless specifiers are neither bundled nor
+// copied, which fails at runtime with ERR_MODULE_NOT_FOUND.
+import { createApp } from "../server/app.js";
 
 const app = createApp();
 

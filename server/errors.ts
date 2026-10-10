@@ -1,7 +1,7 @@
 import type { ContentfulStatusCode } from "hono/utils/http-status";
 import type { Context } from "hono";
 import { HTTPException } from "hono/http-exception";
-import { AppError, isAppError } from "../src/core/errors/AppError";
+import { AppError, isAppError } from "../src/core/errors/AppError.js";
 
 export interface ApiErrorBody {
   error: {

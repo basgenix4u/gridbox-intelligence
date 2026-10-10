@@ -2,10 +2,10 @@ import { cors } from "hono/cors";
 import { Hono } from "hono";
 import { secureHeaders } from "hono/secure-headers";
 import { sql } from "drizzle-orm";
-import { createDatabase, type Database } from "../db/client";
-import type { Env } from "./env";
-import { readEnv } from "./env";
-import { errorBody, onError } from "./errors";
+import { createDatabase, type Database } from "../db/client.js";
+import type { Env } from "./env.js";
+import { readEnv } from "./env.js";
+import { errorBody, onError } from "./errors.js";
 
 export interface AppOptions {
   env?: Env;

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createApp } from "./app";
+import { createApp } from "./app.js";
 import type { Env } from "./env";
 
 /**
