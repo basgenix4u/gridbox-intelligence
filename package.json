@@ -20,7 +20,7 @@
     "verify": "npm run typecheck && npm run lint && npm run test && npm run build",
     "prepare": "husky",
     "db:generate": "drizzle-kit generate",
-    "db:migrate": "drizzle-kit migrate",
+    "db:migrate": "tsx scripts/migrate.ts",
     "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio",
     "db:seed": "tsx scripts/seed.ts"
@@ -71,7 +71,7 @@
     "vite-plugin-singlefile": "2.3.0",
     "vitest": "^4.1.11"
   },
-  "description": "Gridbox Intelligence — a fast grid arcade game. Harvest data chips, outsmart increasingly intelligent machines, and pulse to purge them.",
+  "description": "Gridbox Intelligence \u2014 a fast grid arcade game. Harvest data chips, outsmart increasingly intelligent machines, and pulse to purge them.",
   "license": "MIT",
   "engines": {
     "node": ">=20.19"

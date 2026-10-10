@@ -1,31 +1,26 @@
 import { sql } from "drizzle-orm";
-import {
-  bigint,
-  bigserial,
-  date,
-  index,
-  integer,
-  jsonb,
-  pgEnum,
-  pgTable,
-  text,
-  timestamp,
-  uuid,
-} from "drizzle-orm/pg-core";
+import { bigint, bigserial, date, index, integer, jsonb, pgSchema, text, timestamp, uuid } from "drizzle-orm/pg-core";
 
 /**
- * Supabase Postgres schema.
+ * Everything the game owns lives in a dedicated Postgres schema.
  *
- * Every request reaches the database through the serverless API using the
- * service role, so there are no permissive policies to leak. Row Level
- * Security is enabled anyway as defence in depth: if credentials are ever
- * exposed, the policies are the second lock.
+ * This project is shared with a pre-existing portfolio whose `public` schema
+ * already contains an `audit_log` table and ~80 rows of live content. Using a
+ * separate schema means no name collisions, no `ALTER` of anyone else's tables,
+ * and grants that can be scoped to this schema alone. The portfolio's own
+ * tables, data and credentials are never touched.
+ *
+ * Row Level Security is enabled as defence in depth. Note that the API connects
+ * as `gridbox_app`, a plain `NOBYPASSRLS` role rather than Supabase's
+ * `service_role`, so the policies in `0001_rls.sql` are what actually grant the
+ * application its access — they are load-bearing, not decorative.
  */
+export const gridbox = pgSchema("gridbox");
 
-export const runMode = pgEnum("run_mode", ["endless", "daily", "zen", "hardcore"]);
-export const runValidity = pgEnum("run_validity", ["ok", "suspect", "rejected"]);
+export const runMode = gridbox.enum("run_mode", ["endless", "daily", "zen", "hardcore"]);
+export const runValidity = gridbox.enum("run_validity", ["ok", "suspect", "rejected"]);
 
-export const players = pgTable(
+export const players = gridbox.table(
   "players",
   {
     id: uuid("id").primaryKey().defaultRandom(),
@@ -41,7 +36,7 @@ export const players = pgTable(
   (t) => [index("players_best_score_idx").on(t.bestScore.desc())],
 );
 
-export const runs = pgTable(
+export const runs = gridbox.table(
   "runs",
   {
     id: uuid("id").primaryKey().defaultRandom(),
@@ -83,7 +78,7 @@ export const runs = pgTable(
 );
 
 /** Moderation queue for display names. */
-export const nameReports = pgTable(
+export const nameReports = gridbox.table(
   "name_reports",
   {
     id: bigserial("id", { mode: "number" }).primaryKey(),
@@ -99,7 +94,7 @@ export const nameReports = pgTable(
   (t) => [index("name_reports_status_idx").on(t.status, t.createdAt.desc())],
 );
 
-export const auditLog = pgTable("audit_log", {
+export const auditLog = gridbox.table("audit_log", {
   id: bigserial("id", { mode: "number" }).primaryKey(),
   actor: text("actor"),
   action: text("action").notNull(),
@@ -107,7 +102,7 @@ export const auditLog = pgTable("audit_log", {
   at: timestamp("at", { withTimezone: true }).notNull().defaultNow(),
 });
 
-export const leaderboardDaily = pgTable("leaderboard_daily", {
+export const leaderboardDaily = gridbox.table("leaderboard_daily", {
   day: date("day").notNull(),
   mode: runMode("mode").notNull(),
   playerId: uuid("player_id").notNull(),

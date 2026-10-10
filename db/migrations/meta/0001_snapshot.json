@@ -1,12 +1,12 @@
 {
-  "id": "5a413826-7245-4fef-a524-1ed40c557ab5",
-  "prevId": "00f232db-2de3-4d36-b96b-75dccfcdf91e",
+  "id": "8e2d5b19-af01-499c-8e91-241eb4bd2030",
+  "prevId": "d4293b20-3494-4885-87e2-977bd9b074aa",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
-    "public.audit_log": {
+    "gridbox.audit_log": {
       "name": "audit_log",
-      "schema": "",
+      "schema": "gridbox",
       "columns": {
         "id": {
           "name": "id",
@@ -48,9 +48,9 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.leaderboard_daily": {
+    "gridbox.leaderboard_daily": {
       "name": "leaderboard_daily",
-      "schema": "",
+      "schema": "gridbox",
       "columns": {
         "day": {
           "name": "day",
@@ -61,7 +61,7 @@
         "mode": {
           "name": "mode",
           "type": "run_mode",
-          "typeSchema": "public",
+          "typeSchema": "gridbox",
           "primaryKey": false,
           "notNull": true
         },
@@ -98,9 +98,9 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.name_reports": {
+    "gridbox.name_reports": {
       "name": "name_reports",
-      "schema": "",
+      "schema": "gridbox",
       "columns": {
         "id": {
           "name": "id",
@@ -165,29 +165,31 @@
             }
           ],
           "isUnique": false,
-          "with": {},
+          "concurrently": false,
           "method": "btree",
-          "concurrently": false
+          "with": {}
         }
       },
       "foreignKeys": {
         "name_reports_reporter_player_id_players_id_fk": {
           "name": "name_reports_reporter_player_id_players_id_fk",
           "tableFrom": "name_reports",
-          "columnsFrom": ["reporter_player_id"],
           "tableTo": "players",
+          "schemaTo": "gridbox",
+          "columnsFrom": ["reporter_player_id"],
           "columnsTo": ["id"],
-          "onUpdate": "no action",
-          "onDelete": "set null"
+          "onDelete": "set null",
+          "onUpdate": "no action"
         },
         "name_reports_reported_player_id_players_id_fk": {
           "name": "name_reports_reported_player_id_players_id_fk",
           "tableFrom": "name_reports",
-          "columnsFrom": ["reported_player_id"],
           "tableTo": "players",
+          "schemaTo": "gridbox",
+          "columnsFrom": ["reported_player_id"],
           "columnsTo": ["id"],
-          "onUpdate": "no action",
-          "onDelete": "cascade"
+          "onDelete": "cascade",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {},
@@ -196,9 +198,9 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.players": {
+    "gridbox.players": {
       "name": "players",
-      "schema": "",
+      "schema": "gridbox",
       "columns": {
         "id": {
           "name": "id",
@@ -268,9 +270,9 @@
             }
           ],
           "isUnique": false,
-          "with": {},
+          "concurrently": false,
           "method": "btree",
-          "concurrently": false
+          "with": {}
         }
       },
       "foreignKeys": {},
@@ -278,17 +280,17 @@
       "uniqueConstraints": {
         "players_anon_token_hash_unique": {
           "name": "players_anon_token_hash_unique",
-          "columns": ["anon_token_hash"],
-          "nullsNotDistinct": false
+          "nullsNotDistinct": false,
+          "columns": ["anon_token_hash"]
         }
       },
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.runs": {
+    "gridbox.runs": {
       "name": "runs",
-      "schema": "",
+      "schema": "gridbox",
       "columns": {
         "id": {
           "name": "id",
@@ -306,7 +308,7 @@
         "mode": {
           "name": "mode",
           "type": "run_mode",
-          "typeSchema": "public",
+          "typeSchema": "gridbox",
           "primaryKey": false,
           "notNull": true,
           "default": "'endless'"
@@ -375,7 +377,7 @@
         "validity": {
           "name": "validity",
           "type": "run_validity",
-          "typeSchema": "public",
+          "typeSchema": "gridbox",
           "primaryKey": false,
           "notNull": true,
           "default": "'ok'"
@@ -407,10 +409,10 @@
             }
           ],
           "isUnique": false,
-          "with": {},
+          "where": "\"gridbox\".\"runs\".\"validity\" = 'ok'",
+          "concurrently": false,
           "method": "btree",
-          "where": "\"runs\".\"validity\" = 'ok'",
-          "concurrently": false
+          "with": {}
         },
         "runs_mode_idx": {
           "name": "runs_mode_idx",
@@ -429,10 +431,10 @@
             }
           ],
           "isUnique": false,
-          "with": {},
+          "where": "\"gridbox\".\"runs\".\"validity\" = 'ok'",
+          "concurrently": false,
           "method": "btree",
-          "where": "\"runs\".\"validity\" = 'ok'",
-          "concurrently": false
+          "with": {}
         },
         "runs_daily_idx": {
           "name": "runs_daily_idx",
@@ -457,10 +459,10 @@
             }
           ],
           "isUnique": false,
-          "with": {},
+          "where": "\"gridbox\".\"runs\".\"validity\" = 'ok'",
+          "concurrently": false,
           "method": "btree",
-          "where": "\"runs\".\"validity\" = 'ok'",
-          "concurrently": false
+          "with": {}
         },
         "runs_player_idx": {
           "name": "runs_player_idx",
@@ -479,20 +481,21 @@
             }
           ],
           "isUnique": false,
-          "with": {},
+          "concurrently": false,
           "method": "btree",
-          "concurrently": false
+          "with": {}
         }
       },
       "foreignKeys": {
         "runs_player_id_players_id_fk": {
           "name": "runs_player_id_players_id_fk",
           "tableFrom": "runs",
-          "columnsFrom": ["player_id"],
           "tableTo": "players",
+          "schemaTo": "gridbox",
+          "columnsFrom": ["player_id"],
           "columnsTo": ["id"],
-          "onUpdate": "no action",
-          "onDelete": "cascade"
+          "onDelete": "cascade",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {},
@@ -503,22 +506,24 @@
     }
   },
   "enums": {
-    "public.run_mode": {
+    "gridbox.run_mode": {
       "name": "run_mode",
-      "schema": "public",
+      "schema": "gridbox",
       "values": ["endless", "daily", "zen", "hardcore"]
     },
-    "public.run_validity": {
+    "gridbox.run_validity": {
       "name": "run_validity",
-      "schema": "public",
+      "schema": "gridbox",
       "values": ["ok", "suspect", "rejected"]
     }
   },
-  "schemas": {},
-  "views": {},
+  "schemas": {
+    "gridbox": "gridbox"
+  },
   "sequences": {},
   "roles": {},
   "policies": {},
+  "views": {},
   "_meta": {
     "columns": {},
     "schemas": {},

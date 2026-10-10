@@ -15,7 +15,7 @@
 | Release scope | **One release containing P0 + P1** (no separate v1.1.0) |
 | Rebalance | **Approved.** Combo tapering + kill-value rebalance. Existing local scores are **preserved and tagged** as legacy scoring, not deleted |
 | Names | **Both** — long display name on the profile, 3-char initials in compact leaderboard rows → requires profanity filtering, moderation queue and report flow |
-| Supabase | **Blocked — see "Supabase blocker" below.** All code is config-driven via `DATABASE_URL`, so stages 3.1–3.6 are unblocked |
+| Supabase | **Reusing the user's existing `my-portfolio` project**, isolated in a dedicated `gridbox` schema. The portfolio's own tables, data and credentials are untouched |
 
 ---
 
@@ -40,25 +40,41 @@
 - [x] 2.4 husky + lint-staged pre-commit; commitlint (Conventional Commits)
 - [x] 2.5 Scripts: `dev build preview typecheck lint format test test:coverage test:e2e test:a11y verify`
 - [x] 2.6 Serverless scaffold: `api/index.ts` (Hono) + `vercel.json` rewrite + live `/healthz` smoke test
-- [x] 2.7 Supabase: Drizzle schema + generated migrations (init + RLS), `.env.example`, seed script
+- [x] 2.7 Supabase: Drizzle schema in the `gridbox` schema + migrations (init + RLS), `bootstrap.sql`,
+      `.env.example`, seed script — **applied and verified live**
 - [~] 2.8 **Await approval of the Stage 2 environment (verified end-to-end)**
-      — Code, tooling and live deployment are done and verified. The one open item is the
-        database choice below; it does **not** block Stage 3 tasks 3.1–3.6.
+      — Code, tooling, live deployment and the database are all done and verified.
 
-### Supabase blocker
+### Supabase — resolved
 
-The supplied Supabase token is read-only for project administration: `POST /v1/projects`
-returns **403 Forbidden**, `GET /v1/organizations` returns `[]`, and
-`GET /v1/organizations/{id}/members` returns 403. It can read the existing `my-portfolio`
-project (ref `yuiehpvsmqrjgjbdpqlb`, eu-west-1, healthy) but **cannot create a new project**.
+The supplied token could not create a project (`POST /v1/projects` → 403), so per the user's
+decision the game reuses the existing **`my-portfolio`** project (ref `yuiehpvsmqrjgjbdpqlb`,
+eu-west-1). The hard requirement was *"don't let the update affect my portfolio's own"*, which
+drove every choice below.
 
-Options — needs a user decision:
+**Isolation.** `public` already contained an `audit_log` table plus ~80 rows of live content
+(`projects` 8, `project_tech` 34, `social_links` 6 …). Everything the game owns therefore lives
+in a dedicated **`gridbox`** schema: no name collisions, no `ALTER` of anyone else's tables, and
+grants scoped to that one schema. Verified after migration: `public` still has 18 tables and
+`audit_log` still has its 9 rows.
 
-- [ ] **(a)** Reuse the existing `my-portfolio` project (add the game tables alongside its current tables)
-- [ ] **(b)** User creates a project in the Supabase dashboard and supplies `DATABASE_URL` (pooler, 6543) + `DIRECT_URL` (5432)
-- [ ] **(c)** Supply a Supabase token with project-creation scope, and the project is created automatically
+**Credentials.** The database password was never needed and was never reset — resetting it would
+have broken the portfolio's existing connections. Instead the Supabase Management API's SQL
+endpoint ran the privileged bootstrap (`db/bootstrap.sql`), creating a least-privilege
+`gridbox_app` role (NOSUPERUSER / NOCREATEDB / NOREPLICATION / NOBYPASSRLS) with rights on
+`gridbox` only.
 
-Until one is chosen, `/readyz` correctly reports `503 · database: not-configured`.
+**Connectivity.** Two findings that are not in the dashboard snippets:
+
+- `db.<ref>.supabase.co` publishes an **AAAA record only** (IPv6 is Supabase's default; IPv4
+  direct access is a paid add-on). Vercel's Lambdas egress over IPv4, so the pooler is the only
+  route that works from production.
+- The pooler for this project is **`aws-1-eu-west-1`**, not the commonly documented `aws-0-*`;
+  the latter answers `tenant/user not found`.
+
+Because the API connects as a plain `NOBYPASSRLS` role rather than `service_role`, the RLS
+policies in `0001_rls.sql` are load-bearing rather than decorative.
+
 
 ## Stage 3 — Core hardening & backend
 
@@ -132,6 +148,18 @@ Until one is chosen, `/readyz` correctly reports `503 · database: not-configure
 | Generated migrations | ✅ `0000_init.sql`, `0001_rls.sql` |
 | `npx vitest run` (final, after API fixes) | ✅ **206 tests / 21 files passing** |
 
+### Database — live
+
+| Check | Result |
+|---|---|
+| Migrations applied | ✅ `0000_init` + `0001_rls` via the pooler |
+| Tables in `gridbox` | ✅ `players`, `runs`, `name_reports`, `audit_log`, `leaderboard_daily` |
+| RLS enabled + policies | ✅ all 5 tables, 12 policies |
+| Enums | ✅ `run_mode`, `run_validity` |
+| Migration bookkeeping | ✅ `gridbox.__drizzle_migrations` (nothing written to `public`) |
+| Portfolio `public` schema | ✅ unchanged — 18 tables, `audit_log` 9 rows, `projects` 8 rows |
+| `gridbox_app` privileges | ✅ non-superuser, no CREATEDB, rights on `gridbox` only |
+
 ### Live deployment
 
 - Vercel project **gridbox-intelligence** (`prj_wJ9rt8VB2uMlCkgde2cdZwOE4Upn`) · auto-deploys from `main`
@@ -141,7 +169,7 @@ Until one is chosen, `/readyz` correctly reports `503 · database: not-configure
 |---|---|
 | `GET /` | ✅ 200 · 274,616 bytes · `<title>Gridbox Intelligence</title>` |
 | `GET /api/v1/healthz` | ✅ 200 · `{"status":"ok","environment":"production"}` |
-| `GET /api/v1/readyz` | ✅ 503 · `{"status":"degraded","database":"not-configured"}` — correct pending DB |
+| `GET /api/v1/readyz` | ✅ **200 · `{"status":"ready","database":"up"}`** |
 | `GET /api/v1/nope` | ✅ 404 · structured error body with `requestId` |
 
 **Three deployment defects found and fixed** (all verified against the live deployment,

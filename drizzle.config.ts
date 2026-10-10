@@ -1,9 +1,14 @@
 import { defineConfig } from "drizzle-kit";
 
 /**
- * `DATABASE_URL` must point at Supabase's *transaction pooler* (port 6543).
- * Migrations use `DIRECT_URL` (port 5432) because DDL cannot run through the
- * pooler in transaction mode.
+ * `DATABASE_URL` points at Supabase's transaction pooler (port 6543).
+ *
+ * This project's direct endpoint (`db.<ref>.supabase.co`) publishes an AAAA
+ * record only — IPv6 is Supabase's default and IPv4 direct access is a paid
+ * add-on. Vercel's Lambdas egress over IPv4, so the pooler is the only route
+ * that actually works from production. `DIRECT_URL` is therefore optional and
+ * only used when running migrations from a network that can reach IPv6;
+ * otherwise migrations run through the pooler as well.
  */
 export default defineConfig({
   schema: "./db/schema.ts",
