@@ -89,6 +89,6 @@ describe("Stat", () => {
 
   it("falls back to a light colour when no accent is given", () => {
     render(<Stat label="SCORE" value={5} />);
-    expect(screen.getByText("5").getAttribute("style")).toContain("rgb(248, 250, 252)");
+    expect(screen.getByText("5").getAttribute("style")).toContain("var(--color-veil-100)");
   });
 });

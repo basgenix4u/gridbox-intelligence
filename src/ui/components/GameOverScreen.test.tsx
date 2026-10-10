@@ -5,7 +5,15 @@ import { CURRENT_SCORING_VERSION, type ScoreEntry } from "@/game/scoring";
 import type { RunStats } from "@/game/types";
 import { GameOverScreen } from "./GameOverScreen";
 
-const stats: RunStats = { score: 8_400, level: 12, chips: 77, maxCombo: 8, kills: 9, timeMs: 92_000 };
+const stats: RunStats = {
+  score: 8_400,
+  level: 12,
+  chips: 77,
+  maxCombo: 8,
+  kills: 9,
+  timeMs: 92_000,
+  bestPulseKills: 3,
+};
 
 function entry(overrides: Partial<ScoreEntry> = {}): ScoreEntry {
   return {

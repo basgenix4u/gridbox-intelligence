@@ -79,11 +79,11 @@ export function Stat({
   accent?: string;
 }): ReactElement {
   return (
-    <div className="flex flex-col items-center rounded-xl border border-slate-700/60 bg-slate-900/60 px-2 py-2">
-      <span className="font-display text-base font-bold" style={{ color: accent ?? "#f8fafc" }}>
+    <div className="flex flex-col items-center rounded-xl border border-ink-700/60 bg-ink-900/60 px-2 py-2">
+      <span className="font-display text-base font-bold" style={{ color: accent ?? "var(--color-veil-100)" }}>
         {value}
       </span>
-      <span className="text-[10px] font-semibold tracking-[0.2em] text-slate-400">{label}</span>
+      <span className="text-[10px] font-semibold tracking-[0.2em] text-veil-300">{label}</span>
     </div>
   );
 }

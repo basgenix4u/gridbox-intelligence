@@ -157,7 +157,7 @@ export function renderGame(g: Game, ctx: CanvasRenderingContext2D): void {
     ctx.fill();
     const ex = DX[p.facing] * size * 0.09;
     const ey = DY[p.facing] * size * 0.09;
-    ctx.fillStyle = "#0b1020";
+    ctx.fillStyle = "#0e010f";
     for (const o of [-1, 1]) {
       rr(ctx, x + o * size * 0.13 - size * 0.055 + ex, y - size * 0.08 + ey, size * 0.11, size * 0.17, 2);
       ctx.fill();
@@ -284,7 +284,7 @@ function drawEnemy(
     ctx.fill();
     ctx.beginPath();
     ctx.arc(px + dx * er * 0.5, py + dy * er * 0.5, er * 0.55, 0, Math.PI * 2);
-    ctx.fillStyle = "#0b1020";
+    ctx.fillStyle = "#0e010f";
     ctx.fill();
     if (e.kind === 2) {
       ctx.beginPath();
@@ -327,18 +327,18 @@ function drawHUD(g: Game, ctx: CanvasRenderingContext2D, ui: number): void {
   ctx.fillStyle = COLORS.bg;
   ctx.fillRect(0, 0, W, hudH);
   ctx.fillRect(0, H - botH, W, botH);
-  ctx.fillStyle = "rgba(34,211,238,0.18)";
+  ctx.fillStyle = "rgba(218,65,103,0.18)";
   ctx.fillRect(pad, hudH - 1, W - pad * 2, 1);
   ctx.textBaseline = "alphabetic";
 
   // score
   setLetterSpacing(ctx, 2);
   ctx.textAlign = "left";
-  ctx.fillStyle = "rgba(148,163,184,0.9)";
+  ctx.fillStyle = "rgba(157,127,150,0.95)";
   ctx.font = `600 ${Math.round(11 * ui)}px ${FONT_B}`;
   ctx.fillText("SCORE", pad + 2, hudH * 0.36);
   setLetterSpacing(ctx, 0);
-  ctx.fillStyle = "#f8fafc";
+  ctx.fillStyle = "#f2f0f2";
   ctx.font = `700 ${Math.round(25 * ui)}px ${FONT_D}`;
   ctx.fillText(String(g.score), pad, hudH * 0.8);
 
@@ -360,11 +360,11 @@ function drawHUD(g: Game, ctx: CanvasRenderingContext2D, ui: number): void {
     ctx.fill();
   } else {
     setLetterSpacing(ctx, 2);
-    ctx.fillStyle = "rgba(148,163,184,0.5)";
+    ctx.fillStyle = "rgba(157,127,150,0.5)";
     ctx.font = `600 ${Math.round(11 * ui)}px ${FONT_B}`;
     ctx.fillText("COMBO", W / 2, hudH * 0.36);
     setLetterSpacing(ctx, 0);
-    ctx.fillStyle = "rgba(148,163,184,0.35)";
+    ctx.fillStyle = "rgba(157,127,150,0.35)";
     ctx.font = `700 ${Math.round(20 * ui)}px ${FONT_D}`;
     ctx.fillText("×1", W / 2, hudH * 0.8);
   }
@@ -382,7 +382,7 @@ function drawHUD(g: Game, ctx: CanvasRenderingContext2D, ui: number): void {
       ctx.fill();
     } else {
       const s = i === g.lives ? popS : 1;
-      ctx.strokeStyle = i === g.lives && g.livesPop > 0 ? rgba(COLORS.red, 0.9) : "rgba(148,163,184,0.3)";
+      ctx.strokeStyle = i === g.lives && g.livesPop > 0 ? rgba(COLORS.red, 0.9) : "rgba(157,127,150,0.3)";
       ctx.lineWidth = 1.5;
       rr(ctx, x - (bs * (s - 1)) / 2, y - (bs * (s - 1)) / 2, bs * s, bs * s, 3);
       ctx.stroke();
@@ -402,7 +402,7 @@ function drawHUD(g: Game, ctx: CanvasRenderingContext2D, ui: number): void {
   setLetterSpacing(ctx, 2);
   ctx.textAlign = "left";
   ctx.font = `700 ${Math.round(11 * ui)}px ${FONT_B}`;
-  ctx.fillStyle = ready ? COLORS.player : "rgba(148,163,184,0.8)";
+  ctx.fillStyle = ready ? COLORS.player : "rgba(157,127,150,0.8)";
   ctx.fillText("PULSE", pad + 2, cyc + 1);
   const hintW = ready ? (g.isTouch ? 60 : 118) * ui : 0;
   const segX0 = pad + labelW;
@@ -420,8 +420,8 @@ function drawHUD(g: Game, ctx: CanvasRenderingContext2D, ui: number): void {
     ctx.fillStyle = filled
       ? ready
         ? rgba(COLORS.player, 0.75 + 0.25 * glowA)
-        : "rgba(34,211,238,0.7)"
-      : "rgba(148,163,184,0.15)";
+        : "rgba(218,65,103,0.7)"
+      : "rgba(157,127,150,0.15)";
     ctx.fill();
     if (filled && i === g.charge - 1 && g.chargePop > 0) {
       ctx.fillStyle = rgba(COLORS.white, g.chargePop * 0.7);

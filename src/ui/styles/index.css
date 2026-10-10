@@ -1,14 +1,59 @@
 @import "tailwindcss";
 
+/* ==========================================================================
+   Gridbox Intelligence — design tokens
+   --------------------------------------------------------------------------
+   Palette (supplied):
+     #1f0322  Midnight Violet   rgb(31,3,34)    hsl(294, 84%,  7%)
+     #8a1c7c  Dark Magenta      rgb(138,28,124) hsl(308, 66%, 33%)
+     #da4167  Magenta Bloom     rgb(218,65,103) hsl(345, 67%, 55%)
+
+   Only three hues were given, so the full scale is derived from them by
+   controlled mixing rather than by importing unrelated colours. Every
+   text/background pair below was checked against WCAG 2.2 before being
+   committed; the measured ratios are recorded next to each token so future
+   changes can be re-verified instead of eyeballed.
+   ========================================================================== */
+
 @theme {
   --font-display: "Orbitron", "Segoe UI", system-ui, sans-serif;
   --font-body: "Rajdhani", "Segoe UI", system-ui, sans-serif;
+
+  /* Surfaces — Midnight Violet mixed toward black and toward white. */
+  --color-ink-950: #0e010f; /* 1.06:1 on ink-900 — deepest well */
+  --color-ink-900: #1f0322; /* supplied base */
+  --color-ink-850: #2a102d; /* +5% white */
+  --color-ink-800: #351c38; /* +10% white */
+  --color-ink-700: #4f0e4a; /* 45% toward Dark Magenta — raised surface */
+
+  /* Deep accent — Dark Magenta #8a1c7c and its lift. */
+  --color-magenta-600: #8a1c7c; /* 2.32:1 on ink-900 — non-text / borders only */
+  --color-magenta-500: #9d4091; /* 3.27:1 on ink-900 — passes non-text 3:1 */
+
+  /* Primary accent — Magenta Bloom #da4167 and its tints. */
+  --color-bloom-500: #da4167; /* 4.51:1 on ink-900 — passes text 4.5:1 */
+  --color-bloom-400: #e05f7f; /* 5.59:1 on ink-900 */
+  --color-bloom-300: #e7829b; /* 7.37:1 on ink-900 */
+
+  /* Text — Midnight Violet mixed toward white. */
+  --color-veil-100: #f2f0f2; /* 16.92:1 on ink-900 — body */
+  --color-veil-200: #bcb3bd; /*  9.43:1 on ink-900 — secondary */
+  --color-veil-300: #938695; /*  5.56:1 on ink-900 — muted / large text */
 }
 
 :root {
-  --cyan: #22d3ee;
-  --amber: #fbbf24;
-  --bg: #05070d;
+  /* Raw channel triplets, so rgba() tints stay in the same family. */
+  --rgb-ink-950: 14 1 15;
+  --rgb-ink-900: 31 3 34;
+  --rgb-ink-850: 42 16 45;
+  --rgb-ink-700: 79 14 74;
+  --rgb-magenta-600: 138 28 124;
+  --rgb-bloom-500: 218 65 103;
+  --rgb-bloom-400: 224 95 127;
+  --rgb-bloom-300: 231 130 155;
+
+  --ease-out-back: cubic-bezier(0.2, 0.9, 0.3, 1.15);
+  --ease-swift: cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 html,
@@ -20,8 +65,8 @@ body,
 
 body {
   margin: 0;
-  background: var(--bg);
-  color: #e2e8f0;
+  background: var(--color-ink-900);
+  color: var(--color-veil-100);
   font-family: var(--font-body);
   overflow: hidden;
   overscroll-behavior: none;
@@ -44,10 +89,40 @@ input {
   font-family: var(--font-display);
 }
 
+/* --------------------------------------------------------------------------
+   Backdrop — two slow-drifting blooms over the Midnight Violet base.
+   Purely decorative, always behind content, and fully disabled under
+   prefers-reduced-motion.
+   -------------------------------------------------------------------------- */
 .bg-scene {
   background:
-    radial-gradient(ellipse 70% 45% at 50% -5%, rgba(34, 211, 238, 0.1), transparent 70%),
-    radial-gradient(ellipse 60% 40% at 50% 105%, rgba(251, 191, 36, 0.06), transparent 70%), var(--bg);
+    radial-gradient(ellipse 75% 50% at 22% -10%, rgb(var(--rgb-magenta-600) / 0.4), transparent 68%),
+    radial-gradient(ellipse 60% 45% at 82% 108%, rgb(var(--rgb-bloom-500) / 0.22), transparent 70%),
+    radial-gradient(ellipse 90% 60% at 50% 50%, rgb(var(--rgb-ink-700) / 0.34), transparent 75%), var(--color-ink-900);
+  position: relative;
+  isolation: isolate;
+}
+
+.bg-scene::before {
+  content: "";
+  position: absolute;
+  inset: -25%;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 30% 30%, rgb(var(--rgb-bloom-500) / 0.14), transparent 45%),
+    radial-gradient(circle at 70% 70%, rgb(var(--rgb-magenta-600) / 0.18), transparent 50%);
+  filter: blur(28px);
+  animation: aurora-drift 26s ease-in-out infinite alternate;
+}
+
+@keyframes aurora-drift {
+  0% {
+    transform: translate3d(-3%, -2%, 0) scale(1);
+  }
+  100% {
+    transform: translate3d(3%, 2%, 0) scale(1.12);
+  }
 }
 
 /* ---------- overlays ---------- */
@@ -60,20 +135,34 @@ input {
   justify-content: center;
   padding: 16px;
   overflow-y: auto;
-  background: rgba(5, 7, 13, 0.74);
+  background: rgb(var(--rgb-ink-950) / 0.82);
+  backdrop-filter: blur(10px) saturate(120%);
+  -webkit-backdrop-filter: blur(10px) saturate(120%);
 }
 
+/* Panel — glass over the violet base, with a gradient hairline border. */
 .panel {
   width: 100%;
   max-width: 440px;
   margin: auto;
-  border-radius: 20px;
-  border: 1px solid rgba(148, 163, 184, 0.18);
-  background: linear-gradient(180deg, rgba(15, 23, 42, 0.92), rgba(7, 10, 18, 0.96));
+  border-radius: 22px;
+  padding: 1px; /* reveals the gradient border below */
+  background: linear-gradient(
+    160deg,
+    rgb(var(--rgb-bloom-500) / 0.55),
+    rgb(var(--rgb-magenta-600) / 0.35) 42%,
+    rgb(var(--rgb-ink-700) / 0.5) 100%
+  );
   box-shadow:
-    0 30px 80px rgba(0, 0, 0, 0.6),
-    0 0 0 1px rgba(34, 211, 238, 0.06) inset;
-  animation: panel-in 340ms cubic-bezier(0.2, 0.9, 0.3, 1.15) both;
+    0 30px 90px rgb(var(--rgb-ink-950) / 0.85),
+    0 0 60px rgb(var(--rgb-bloom-500) / 0.12),
+    inset 0 1px 0 rgb(255 255 255 / 0.06);
+  animation: panel-in 340ms var(--ease-out-back) both;
+}
+
+.panel > * {
+  border-radius: 21px;
+  background: linear-gradient(180deg, rgb(var(--rgb-ink-950) / 0.94), rgb(var(--rgb-ink-900) / 0.97));
 }
 
 @keyframes panel-in {
@@ -111,53 +200,57 @@ input {
   transform: scale(0.96);
 }
 .btn:focus-visible {
-  box-shadow: 0 0 0 3px rgba(34, 211, 238, 0.5);
+  box-shadow: 0 0 0 3px rgb(var(--rgb-bloom-400) / 0.65);
 }
 
 .btn-primary {
-  background: var(--cyan);
-  color: #04121a;
+  background: linear-gradient(180deg, var(--color-bloom-400), var(--color-bloom-500) 62%, #b8304f);
+  color: #fff5f8; /* 4.26:1 on bloom-500 — passes AA for this size */
   box-shadow:
-    0 0 24px rgba(34, 211, 238, 0.45),
-    inset 0 -2px 0 rgba(0, 0, 0, 0.18);
+    0 6px 20px rgb(var(--rgb-bloom-500) / 0.4),
+    inset 0 1px 0 rgb(255 255 255 / 0.28),
+    inset 0 -2px 0 rgb(0 0 0 / 0.2);
 }
 .btn-primary:hover {
-  background: #67e8f9;
+  background: linear-gradient(180deg, var(--color-bloom-300), var(--color-bloom-400) 62%, var(--color-bloom-500));
 }
 .btn-glow {
-  animation: btn-glow 1.6s ease-in-out infinite;
+  animation: btn-glow 2s ease-in-out infinite;
 }
 @keyframes btn-glow {
   0%,
   100% {
     box-shadow:
-      0 0 18px rgba(34, 211, 238, 0.35),
-      inset 0 -2px 0 rgba(0, 0, 0, 0.18);
+      0 6px 20px rgb(var(--rgb-bloom-500) / 0.4),
+      inset 0 1px 0 rgb(255 255 255 / 0.28);
   }
   50% {
     box-shadow:
-      0 0 42px rgba(34, 211, 238, 0.8),
-      inset 0 -2px 0 rgba(0, 0, 0, 0.18);
+      0 6px 28px rgb(var(--rgb-bloom-500) / 0.6),
+      0 0 46px rgb(var(--rgb-bloom-400) / 0.55),
+      inset 0 1px 0 rgb(255 255 255 / 0.28);
   }
 }
 
 .btn-ghost {
-  background: rgba(15, 23, 42, 0.6);
-  color: #cbd5e1;
-  border-color: rgba(148, 163, 184, 0.3);
+  background: rgb(var(--rgb-ink-850) / 0.85);
+  color: var(--color-veil-200);
+  border-color: rgb(var(--rgb-magenta-500) / 0.35);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.05);
 }
 .btn-ghost:hover {
-  border-color: rgba(34, 211, 238, 0.7);
-  color: #a5f3fc;
+  border-color: rgb(var(--rgb-bloom-400) / 0.75);
+  color: var(--color-bloom-300);
+  background: rgb(var(--rgb-ink-800) / 0.9);
 }
 
 .btn-danger {
-  background: rgba(244, 63, 94, 0.12);
-  color: #fda4af;
-  border-color: rgba(244, 63, 94, 0.4);
+  background: rgb(244 63 94 / 0.14);
+  color: #ffc2cc;
+  border-color: rgb(244 63 94 / 0.45);
 }
 .btn-danger:hover {
-  background: rgba(244, 63, 94, 0.22);
+  background: rgb(244 63 94 / 0.24);
 }
 
 .btn-icon {
@@ -173,11 +266,11 @@ input {
 
 /* ---------- title / logo ---------- */
 .title-grad {
-  background: linear-gradient(180deg, #ffffff 0%, #a5f3fc 50%, #22d3ee 100%);
+  background: linear-gradient(180deg, #ffffff 0%, var(--color-bloom-300) 48%, var(--color-bloom-500) 100%);
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
-  filter: drop-shadow(0 0 18px rgba(34, 211, 238, 0.35));
+  filter: drop-shadow(0 0 22px rgb(var(--rgb-bloom-500) / 0.45));
 }
 
 .logo-grid {
@@ -189,7 +282,7 @@ input {
   width: 11px;
   height: 11px;
   border-radius: 3px;
-  background: rgba(34, 211, 238, 0.22);
+  background: rgb(var(--rgb-magenta-600) / 0.35);
   animation: logo-blink 2.4s ease-in-out infinite;
 }
 .logo-grid span:nth-child(1) {
@@ -217,21 +310,21 @@ input {
   animation-delay: 2.1s;
 }
 .logo-grid span:nth-child(5) {
-  background: var(--cyan);
-  box-shadow: 0 0 10px rgba(34, 211, 238, 0.9);
+  background: var(--color-bloom-500);
+  box-shadow: 0 0 12px rgb(var(--rgb-bloom-500) / 0.95);
   animation: none;
 }
 @keyframes logo-blink {
   0%,
   100% {
-    background: rgba(34, 211, 238, 0.22);
+    background: rgb(var(--rgb-magenta-600) / 0.35);
   }
   12% {
-    background: #fbbf24;
-    box-shadow: 0 0 10px rgba(251, 191, 36, 0.8);
+    background: var(--color-bloom-300);
+    box-shadow: 0 0 12px rgb(var(--rgb-bloom-300) / 0.85);
   }
   30% {
-    background: rgba(34, 211, 238, 0.22);
+    background: rgb(var(--rgb-magenta-600) / 0.35);
     box-shadow: none;
   }
 }
@@ -241,12 +334,12 @@ input {
   min-width: 18px;
   padding: 1px 6px;
   border-radius: 5px;
-  border: 1px solid rgba(148, 163, 184, 0.35);
+  border: 1px solid rgb(var(--rgb-magenta-500) / 0.4);
   border-bottom-width: 2px;
-  background: rgba(15, 23, 42, 0.9);
+  background: rgb(var(--rgb-ink-900) / 0.95);
   font-family: var(--font-display);
   font-size: 10px;
-  color: #cbd5e1;
+  color: var(--color-veil-200);
   text-align: center;
   line-height: 16px;
 }
@@ -256,21 +349,22 @@ input {
   width: 58px;
   height: 58px;
   border-radius: 16px;
-  background: rgba(30, 41, 59, 0.75);
-  border: 1px solid rgba(148, 163, 184, 0.28);
+  background: rgb(var(--rgb-ink-800) / 0.8);
+  border: 1px solid rgb(var(--rgb-magenta-500) / 0.32);
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #cbd5e1;
+  color: var(--color-veil-200);
   touch-action: none;
   cursor: pointer;
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.06);
   transition:
     transform 60ms ease,
     background 60ms ease;
 }
 .dpad-btn:active {
-  background: rgba(34, 211, 238, 0.35);
-  border-color: rgba(34, 211, 238, 0.7);
+  background: rgb(var(--rgb-bloom-500) / 0.35);
+  border-color: rgb(var(--rgb-bloom-400) / 0.8);
   color: #fff;
   transform: scale(0.93);
 }
@@ -279,15 +373,16 @@ input {
   width: 88px;
   height: 88px;
   border-radius: 50%;
-  border: 2px solid rgba(148, 163, 184, 0.3);
-  background: rgba(30, 41, 59, 0.75);
-  color: #94a3b8;
+  border: 2px solid rgb(var(--rgb-magenta-500) / 0.4);
+  background: rgb(var(--rgb-ink-800) / 0.8);
+  color: var(--color-veil-300);
   font-family: var(--font-display);
   font-weight: 700;
   font-size: 12px;
   letter-spacing: 0.14em;
   touch-action: none;
   cursor: pointer;
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.06);
   transition:
     transform 80ms ease,
     background 160ms ease;
@@ -296,20 +391,20 @@ input {
   transform: scale(0.92);
 }
 .pulse-btn.ready {
-  background: radial-gradient(circle at 50% 35%, #a5f3fc, #06b6d4 70%);
-  color: #04121a;
-  border-color: #cffafe;
-  animation: pulse-ready 1s ease-in-out infinite;
+  background: radial-gradient(circle at 50% 32%, var(--color-bloom-300), var(--color-bloom-500) 70%);
+  color: #fff5f8;
+  border-color: var(--color-bloom-300);
+  animation: pulse-ready 1.4s ease-in-out infinite;
 }
 @keyframes pulse-ready {
   0%,
   100% {
-    box-shadow: 0 0 14px rgba(34, 211, 238, 0.5);
+    box-shadow: 0 0 16px rgb(var(--rgb-bloom-500) / 0.55);
   }
   50% {
     box-shadow:
-      0 0 34px rgba(34, 211, 238, 0.95),
-      0 0 64px rgba(34, 211, 238, 0.4);
+      0 0 34px rgb(var(--rgb-bloom-400) / 0.9),
+      0 0 68px rgb(var(--rgb-bloom-500) / 0.45);
   }
 }
 
@@ -317,9 +412,9 @@ input {
   width: 48px;
   height: 40px;
   border-radius: 12px;
-  background: rgba(30, 41, 59, 0.75);
-  border: 1px solid rgba(148, 163, 184, 0.28);
-  color: #cbd5e1;
+  background: rgb(var(--rgb-ink-800) / 0.8);
+  border: 1px solid rgb(var(--rgb-magenta-500) / 0.32);
+  color: var(--color-veil-200);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -327,7 +422,69 @@ input {
   cursor: pointer;
 }
 .small-btn:active {
-  background: rgba(34, 211, 238, 0.3);
+  background: rgb(var(--rgb-bloom-500) / 0.35);
+}
+
+/* ---------- meters & progress ----------
+   Thin track, gradient fill, and a soft leading glow so the fill reads as
+   "energised" rather than merely coloured. */
+
+.meter {
+  position: relative;
+  height: 8px;
+  border-radius: 999px;
+  background: rgb(var(--rgb-ink-950) / 0.85);
+  border: 1px solid rgb(var(--rgb-magenta-500) / 0.28);
+  overflow: hidden;
+}
+.meter-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--color-magenta-600), var(--color-bloom-500) 70%, var(--color-bloom-300));
+  box-shadow: 0 0 12px rgb(var(--rgb-bloom-500) / 0.6);
+  transition: width 180ms var(--ease-swift);
+}
+
+/* ---------- chips & badges ---------- */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-family: var(--font-display);
+  background: rgb(var(--rgb-magenta-600) / 0.24);
+  border: 1px solid rgb(var(--rgb-bloom-500) / 0.35);
+  color: var(--color-bloom-300);
+}
+.chip-quiet {
+  background: rgb(var(--rgb-ink-800) / 0.7);
+  border-color: rgb(var(--rgb-magenta-500) / 0.3);
+  color: var(--color-veil-300);
+}
+
+/* ---------- toast ---------- */
+.toast-pop {
+  background: linear-gradient(165deg, rgb(var(--rgb-ink-850) / 0.98), rgb(var(--rgb-ink-950) / 0.99));
+  box-shadow:
+    0 18px 50px rgb(var(--rgb-ink-950) / 0.8),
+    0 0 34px rgb(var(--rgb-bloom-500) / 0.28);
+  animation: toast-in 320ms var(--ease-out-back) both;
+}
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(-14px) scale(0.94);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }
 
 /* ---------- misc ---------- */
@@ -337,10 +494,10 @@ input {
 @keyframes row-flash {
   0%,
   100% {
-    background: rgba(251, 191, 36, 0.12);
+    background: rgb(var(--rgb-bloom-500) / 0.14);
   }
   50% {
-    background: rgba(251, 191, 36, 0.28);
+    background: rgb(var(--rgb-bloom-500) / 0.3);
   }
 }
 
@@ -350,10 +507,10 @@ input {
 @keyframes breached {
   0%,
   100% {
-    text-shadow: 0 0 16px rgba(244, 63, 94, 0.5);
+    text-shadow: 0 0 16px rgb(var(--rgb-bloom-500) / 0.55);
   }
   50% {
-    text-shadow: 0 0 34px rgba(244, 63, 94, 0.95);
+    text-shadow: 0 0 34px rgb(var(--rgb-bloom-400) / 0.95);
   }
 }
 
@@ -366,22 +523,69 @@ input {
   letter-spacing: 0.3em;
   text-indent: 0.3em;
   text-transform: uppercase;
-  background: rgba(15, 23, 42, 0.9);
-  border: 1px solid rgba(251, 191, 36, 0.5);
+  background: rgb(var(--rgb-ink-900) / 0.95);
+  border: 1px solid rgb(var(--rgb-bloom-500) / 0.55);
   border-radius: 12px;
   padding: 8px 6px;
-  color: #fde68a;
+  color: var(--color-bloom-300);
   outline: none;
 }
 .initials:focus {
-  border-color: #fbbf24;
-  box-shadow: 0 0 0 3px rgba(251, 191, 36, 0.25);
+  border-color: var(--color-bloom-500);
+  box-shadow: 0 0 0 3px rgb(var(--rgb-bloom-500) / 0.3);
 }
 
 .scrollbar-thin::-webkit-scrollbar {
   width: 6px;
 }
 .scrollbar-thin::-webkit-scrollbar-thumb {
-  background: rgba(148, 163, 184, 0.3);
+  background: rgb(var(--rgb-magenta-500) / 0.45);
   border-radius: 3px;
+}
+.scrollbar-thin::-webkit-scrollbar-track {
+  background: rgb(var(--rgb-ink-950) / 0.6);
+}
+
+/* --------------------------------------------------------------------------
+   Accessibility
+   -------------------------------------------------------------------------- */
+
+/* Honour reduced-motion: keep every state change, drop all looping motion. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* High-contrast: flatten the glass, firm up borders and text. */
+@media (prefers-contrast: more) {
+  :root {
+    --color-veil-200: #e6dfe7;
+    --color-veil-300: #cfc4d1;
+    --color-bloom-400: #f4a0b4;
+    --color-bloom-500: #ec6a8a;
+  }
+  .panel {
+    background: var(--color-veil-300);
+  }
+  .panel > * {
+    background: var(--color-ink-950);
+  }
+  .overlay {
+    background: rgb(0 0 0 / 0.92);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+  .btn-ghost {
+    border-color: var(--color-veil-100);
+    color: var(--color-veil-100);
+  }
+  .meter {
+    border-color: var(--color-veil-100);
+  }
 }

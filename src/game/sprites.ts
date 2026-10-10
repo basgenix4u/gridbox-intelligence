@@ -47,8 +47,8 @@ export class SpriteCache {
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
     const bg = ctx.createLinearGradient(0, 0, 0, H);
-    bg.addColorStop(0, "#0a1020");
-    bg.addColorStop(1, "#05070d");
+    bg.addColorStop(0, "#12030f");
+    bg.addColorStop(1, "#0e010f");
     ctx.fillStyle = bg;
     ctx.fillRect(0, 0, W, H);
 
@@ -57,10 +57,10 @@ export class SpriteCache {
 
     // frame
     rr(ctx, ox - 5, oy - 5, gw + 10, gh + 10, 12);
-    ctx.fillStyle = "rgba(15,23,42,0.55)";
+    ctx.fillStyle = "rgba(31,3,34,0.62)";
     ctx.fill();
     ctx.lineWidth = 1.5;
-    ctx.strokeStyle = "rgba(34,211,238,0.25)";
+    ctx.strokeStyle = "rgba(218,65,103,0.32)";
     ctx.stroke();
 
     for (let y = 0; y < rows; y++) {
@@ -69,21 +69,21 @@ export class SpriteCache {
         const py = oy + y * cell;
         if (walls[y * cols + x]) {
           rr(ctx, px + 2, py + 2, cell - 4, cell - 4, cell * 0.16);
-          ctx.fillStyle = "#1c2639";
+          ctx.fillStyle = "#2a102d";
           ctx.fill();
           ctx.lineWidth = 1;
-          ctx.strokeStyle = "rgba(148,163,184,0.3)";
+          ctx.strokeStyle = "rgba(157,127,150,0.35)";
           ctx.stroke();
           rr(ctx, px + cell * 0.3, py + cell * 0.3, cell * 0.4, cell * 0.4, cell * 0.06);
-          ctx.fillStyle = "#0a1120";
+          ctx.fillStyle = "#1a0518";
           ctx.fill();
-          ctx.fillStyle = "rgba(148,163,184,0.14)";
+          ctx.fillStyle = "rgba(157,127,150,0.16)";
           ctx.fillRect(px + cell * 0.22, py + 3.5, cell * 0.56, 1.5);
         } else {
           rr(ctx, px + 1.5, py + 1.5, cell - 3, cell - 3, cell * 0.12);
-          ctx.fillStyle = (x + y) % 2 === 0 ? "rgba(56,189,248,0.05)" : "rgba(56,189,248,0.035)";
+          ctx.fillStyle = (x + y) % 2 === 0 ? "rgba(138,28,124,0.11)" : "rgba(138,28,124,0.06)";
           ctx.fill();
-          ctx.fillStyle = "rgba(148,163,184,0.13)";
+          ctx.fillStyle = "rgba(157,127,150,0.13)";
           ctx.fillRect(px + cell / 2 - 0.75, py + cell / 2 - 0.75, 1.5, 1.5);
         }
       }

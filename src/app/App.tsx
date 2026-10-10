@@ -2,6 +2,7 @@ import type { ReactElement } from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Game } from "@/game/engine";
 import { Synth } from "@/core/adapters/webAudio";
+import { applyAccent } from "@/game/constants";
 import type { Dir, RunStats } from "@/game/types";
 import {
   CURRENT_SCORING_VERSION,
@@ -13,12 +14,24 @@ import {
   updateName,
   type ScoreEntry,
 } from "@/game/scoring";
+import {
+  ACHIEVEMENTS,
+  markUnlocked,
+  nearest,
+  newlyUnlocked,
+  type AchievementDef,
+  type AchievementProgress,
+} from "@/game/achievements";
+import { loadProfile, recordRun, saveProfile, type Profile } from "@/game/profile";
+import { AchievementToast } from "@/ui/components/AchievementToast";
 import { GameCanvas } from "@/ui/components/GameCanvas";
 import { TouchControls, TOUCH_H, TOUCH_W } from "@/ui/components/TouchControls";
 import { StartScreen } from "@/ui/components/StartScreen";
 import { PauseScreen } from "@/ui/components/PauseScreen";
 import { GameOverScreen } from "@/ui/components/GameOverScreen";
 import { ScoresPanel } from "@/ui/components/ScoresPanel";
+
+const ACHIEVEMENT_BY_ID = new Map(ACHIEVEMENTS.map((a) => [a.id, a] as const));
 
 type Phase = "menu" | "playing" | "paused" | "gameover";
 const MUTE_KEY = "gridbox-intelligence.muted";
@@ -67,6 +80,8 @@ interface LastRun {
   stats: RunStats;
   entryId: string | null;
   rank: number;
+  newBest: boolean;
+  nudge: AchievementProgress | null;
 }
 
 export default function App(): ReactElement {
@@ -75,6 +90,8 @@ export default function App(): ReactElement {
   const [phase, setPhase] = useState<Phase>("menu");
   const [menuView, setMenuView] = useState<"main" | "scores">("main");
   const [scores, setScores] = useState<ScoreEntry[]>(() => loadScores());
+  const [profile, setProfile] = useState<Profile>(() => loadProfile());
+  const [toast, setToast] = useState<AchievementDef | null>(null);
   const [lastRun, setLastRun] = useState<LastRun | null>(null);
   const [name, setName] = useState(() => loadName());
   const [muted, setMuted] = useState(readMuted);
@@ -86,6 +103,8 @@ export default function App(): ReactElement {
   const phaseRef = useRef(phase);
   const menuViewRef = useRef(menuView);
   const scoresRef = useRef(scores);
+  const profileRef = useRef(profile);
+  const toastQueueRef = useRef<AchievementDef[]>([]);
   const gameOverAt = useRef(0);
 
   // Refs mirror state for use inside imperative listeners. They must be
@@ -100,6 +119,24 @@ export default function App(): ReactElement {
   useEffect(() => {
     scoresRef.current = scores;
   }, [scores]);
+  useEffect(() => {
+    profileRef.current = profile;
+    saveProfile(profile);
+  }, [profile]);
+
+  // Player-sprite accent follows the profile and persists across sessions.
+  useEffect(() => {
+    applyAccent(profile.accent);
+  }, [profile.accent]);
+
+  // Claim any achievement whose goal is already met (e.g. profile restored on
+  // a new device) without firing toasts — celebrations belong to live moments.
+  useEffect(() => {
+    const pending = newlyUnlocked(profileRef.current);
+    if (pending.length > 0) {
+      setProfile((p) => markUnlocked(p, pending));
+    }
+  }, []);
 
   useEffect(() => {
     synth.muted = muted;
@@ -175,7 +212,24 @@ export default function App(): ReactElement {
         };
         const { list, rank } = addScore(entry);
         setScores(list);
-        setLastRun({ stats, entryId: rank > 0 ? entry.id : null, rank });
+
+        // Meta-progression: fold the run into the persistent profile, claim
+        // whatever just unlocked, and queue celebrations.
+        const { profile: next, newBest } = recordRun(profileRef.current, stats, Date.now());
+        const unlockedIds = newlyUnlocked(next);
+        const claimed = markUnlocked(next, unlockedIds);
+        profileRef.current = claimed;
+        setProfile(claimed);
+        const defs = unlockedIds
+          .map((id) => ACHIEVEMENT_BY_ID.get(id))
+          .filter((d): d is AchievementDef => d !== undefined);
+        if (defs.length > 0) {
+          setToast(defs[0]);
+          toastQueueRef.current = defs.slice(1);
+        }
+        const nudge = nearest(claimed, 1)[0] ?? null;
+        setLastRun({ stats, entryId: rank > 0 ? entry.id : null, rank, newBest, nudge });
+
         gameOverAt.current = performance.now();
         synth.gameOver();
         setPhase("gameover");
@@ -276,6 +330,19 @@ export default function App(): ReactElement {
     if (lastRun?.entryId) setScores(updateName(lastRun.entryId, n));
   };
 
+  const onAccent = useCallback(
+    (id: string) => {
+      synth.ui();
+      applyAccent(id);
+      setProfile((p) => ({ ...p, accent: id }));
+    },
+    [synth],
+  );
+
+  const dismissToast = useCallback(() => {
+    setToast(toastQueueRef.current.shift() ?? null);
+  }, []);
+
   const touchPortrait = isTouch && !landscape;
   const touchLandscape = isTouch && landscape;
   const best = scores.length ? scores[0].score : null;
@@ -298,7 +365,7 @@ export default function App(): ReactElement {
             onUnlockAudio={unlockAudio}
           />
         ) : (
-          <div className="flex h-7 items-center gap-x-4 text-[11px] font-semibold tracking-[0.18em] text-slate-500">
+          <div className="flex h-7 items-center gap-x-4 text-[11px] font-semibold tracking-[0.18em] text-veil-300">
             <span>
               <span className="kbd">WASD</span> MOVE
             </span>
@@ -328,6 +395,9 @@ export default function App(): ReactElement {
             onToggleMute={toggleMute}
             best={best}
             isTouch={isTouch}
+            profile={profile}
+            nearest={nearest(profile, 3)}
+            onAccent={onAccent}
           />
         ) : (
           <ScoresPanel
@@ -365,8 +435,12 @@ export default function App(): ReactElement {
           muted={muted}
           onToggleMute={toggleMute}
           isTouch={isTouch}
+          newBest={lastRun.newBest}
+          nudge={lastRun.nudge}
         />
       )}
+
+      {toast && <AchievementToast achievement={toast} onDone={dismissToast} />}
     </div>
   );
 }

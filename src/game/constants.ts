@@ -17,15 +17,46 @@ export const SPAWN_TELEGRAPH = 850;
 export const PRED_WINDOW = 450; // oracle predicts movement for this long after a step
 
 export const COLORS = {
-  bg: "#070a12",
-  player: "#22d3ee",
-  playerLight: "#cffafe",
-  chip: "#fbbf24",
-  chipLight: "#fef3c7",
+  bg: "#0e010f",
+  player: "#e7829b",
+  playerLight: "#f8e3ec",
+  chip: "#da4167",
+  chipLight: "#f6c9d9",
   red: "#f43f5e",
   white: "#ffffff",
-  slate: "#94a3b8",
+  slate: "#9d7f96",
 };
+
+/**
+ * Player-sprite accent presets.
+ *
+ * Self-expression is the one motive that consistently separates players who
+ * return (Customisation/Design motive — Quantic Foundry 2016; VMQ 2026), and it
+ * is cheap to offer. Presets are curated rather than a free colour picker so
+ * every option stays legible against the board; `jade`/`frost` double as
+ * colour-vision-safe alternatives to the pink-family defaults.
+ */
+export interface AccentDef {
+  id: string;
+  label: string;
+  player: string;
+  playerLight: string;
+}
+
+export const ACCENTS: readonly AccentDef[] = [
+  { id: "bloom", label: "Bloom", player: "#e7829b", playerLight: "#f8e3ec" },
+  { id: "orchid", label: "Orchid", player: "#c084fc", playerLight: "#e9d5ff" },
+  { id: "ember", label: "Ember", player: "#fbbf24", playerLight: "#fef3c7" },
+  { id: "jade", label: "Jade", player: "#4ade80", playerLight: "#dcfce7" },
+  { id: "frost", label: "Frost", player: "#7dd3fc", playerLight: "#e0f2fe" },
+] as const;
+
+/** Applies an accent preset to the live palette (player sprite only). */
+export function applyAccent(id: string): void {
+  const accent = ACCENTS.find((a) => a.id === id) ?? ACCENTS[0];
+  COLORS.player = accent.player;
+  COLORS.playerLight = accent.playerLight;
+}
 
 export interface KindDef {
   name: string;

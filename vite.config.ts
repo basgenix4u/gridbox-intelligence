@@ -16,4 +16,8 @@ export default defineConfig({
       "@": path.resolve(__dirname, "src"),
     },
   },
+  // Dev-server only: the sandbox preview proxies through a dynamic host name,
+  // so accept any Host header rather than hard-coding one that will rotate.
+  server: { host: "0.0.0.0", allowedHosts: true },
+  preview: { host: "0.0.0.0", allowedHosts: true },
 });

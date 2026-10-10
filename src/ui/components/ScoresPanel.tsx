@@ -16,16 +16,16 @@ export function ScoreTable({ scores, highlightId, limit = MAX_SCORES, compact = 
   const rows = scores.slice(0, limit);
   if (!rows.length) {
     return (
-      <div className="rounded-xl border border-dashed border-slate-700 px-4 py-6 text-center text-sm font-medium text-slate-500">
+      <div className="rounded-xl border border-dashed border-ink-700 px-4 py-6 text-center text-sm font-medium text-veil-300">
         No runs recorded yet. The grid awaits.
       </div>
     );
   }
   return (
-    <div className="overflow-hidden rounded-xl border border-slate-700/60">
+    <div className="overflow-hidden rounded-xl border border-ink-700/60">
       <table className="w-full border-collapse text-left text-sm">
         <thead>
-          <tr className="bg-slate-900/80 text-[10px] font-bold tracking-[0.2em] text-slate-400">
+          <tr className="bg-ink-900/80 text-[10px] font-bold tracking-[0.2em] text-veil-300">
             <th className="py-2 pl-3 font-bold">#</th>
             <th className="py-2 font-bold">NAME</th>
             <th className="py-2 text-right font-bold">SCORE</th>
@@ -40,17 +40,17 @@ export function ScoreTable({ scores, highlightId, limit = MAX_SCORES, compact = 
             return (
               <tr
                 key={e.id}
-                className={`border-t border-slate-800/80 ${isNew ? "row-new text-amber-200" : i === 0 ? "text-cyan-100" : "text-slate-300"}`}
+                className={`border-t border-ink-800/80 ${isNew ? "row-new text-bloom-300" : i === 0 ? "text-bloom-300" : "text-veil-200"}`}
               >
-                <td className="py-1.5 pl-3 font-display text-xs font-bold text-slate-500">{i + 1}</td>
+                <td className="py-1.5 pl-3 font-display text-xs font-bold text-veil-300">{i + 1}</td>
                 <td className="py-1.5 font-display text-xs font-bold tracking-widest">{e.name || "---"}</td>
                 <td className="py-1.5 text-right font-display text-sm font-bold">{e.score}</td>
-                <td className="py-1.5 text-right font-semibold text-slate-400">{e.level}</td>
+                <td className="py-1.5 text-right font-semibold text-veil-300">{e.level}</td>
                 {!compact && (
-                  <td className="hidden py-1.5 text-right font-semibold text-slate-400 sm:table-cell">×{e.maxCombo}</td>
+                  <td className="hidden py-1.5 text-right font-semibold text-veil-300 sm:table-cell">×{e.maxCombo}</td>
                 )}
                 {!compact && (
-                  <td className="py-1.5 pr-3 text-right text-xs font-semibold text-slate-500">{formatDate(e.date)}</td>
+                  <td className="py-1.5 pr-3 text-right text-xs font-semibold text-veil-300">{formatDate(e.date)}</td>
                 )}
               </tr>
             );
@@ -73,7 +73,7 @@ export function ScoresPanel({ scores, onBack, onClear }: PanelProps): ReactEleme
     <div className="overlay">
       <div className="panel px-5 py-7 sm:px-7">
         <div className="text-center">
-          <div className="font-display text-xs font-bold tracking-[0.45em] text-cyan-300">LOCAL</div>
+          <div className="font-display text-xs font-bold tracking-[0.45em] text-bloom-400">LOCAL</div>
           <h2 className="mt-1 font-display text-3xl font-black tracking-tight text-white">HIGH SCORES</h2>
         </div>
         <div className="mt-5">

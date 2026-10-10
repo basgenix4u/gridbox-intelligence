@@ -57,7 +57,7 @@ describe("hexToRgb", () => {
 
 describe("rgba", () => {
   it("converts a hex colour to an rgba() string", () => {
-    expect(rgba("#22d3ee", 0.5)).toBe("rgba(34,211,238,0.5)");
+    expect(rgba("#da4167", 0.5)).toBe("rgba(218,65,103,0.5)");
     expect(rgba("#000000", 1)).toBe("rgba(0,0,0,1)");
   });
 });

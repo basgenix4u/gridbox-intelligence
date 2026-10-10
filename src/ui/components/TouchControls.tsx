@@ -61,7 +61,7 @@ export function TouchControls({ game, pulseReady, landscape, onPause, onUnlockAu
         <span />
         {dirBtn(3)}
         <span className="flex items-center justify-center">
-          <span className="h-3 w-3 rounded-sm bg-cyan-400/30" />
+          <span className="h-3 w-3 rounded-sm bg-bloom-500/30" />
         </span>
         {dirBtn(1)}
         <span />

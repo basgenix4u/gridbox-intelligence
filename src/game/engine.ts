@@ -85,6 +85,7 @@ export class Game {
   combo = 1;
   comboTimer = 0;
   maxCombo = 1;
+  bestPulseKills = 0;
   chipsCollected = 0;
   level = 1;
   lives = START_LIVES;
@@ -185,6 +186,7 @@ export class Game {
     this.combo = 1;
     this.comboTimer = 0;
     this.maxCombo = 1;
+    this.bestPulseKills = 0;
     this.chipsCollected = 0;
     this.level = 1;
     this.lives = START_LIVES;
@@ -270,6 +272,7 @@ export class Game {
       level: this.level,
       chips: this.chipsCollected,
       maxCombo: this.maxCombo,
+      bestPulseKills: this.bestPulseKills,
       kills: this.kills,
       timeMs: this.elapsed,
     };
@@ -958,6 +961,7 @@ export class Game {
       }
     }
     if (n > 0) this.enemies = this.enemies.filter((e) => !e.dead);
+    this.bestPulseKills = Math.max(this.bestPulseKills, n);
     for (let i = this.spawners.length - 1; i >= 0; i--) {
       const s = this.spawners[i];
       if (chebyshev(s.gx, s.gy, p.gx, p.gy) <= PULSE_RADIUS) {

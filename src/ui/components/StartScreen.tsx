@@ -1,6 +1,9 @@
 import type { ReactElement } from "react";
-import { KINDS } from "@/game/constants";
+import { ACCENTS, KINDS } from "@/game/constants";
+import type { AchievementProgress } from "@/game/achievements";
+import type { Profile } from "@/game/profile";
 import { Button, MuteButton } from "./ui";
+import { ProgressRail } from "./ProgressRail";
 
 interface Props {
   onPlay: () => void;
@@ -9,9 +12,31 @@ interface Props {
   onToggleMute: () => void;
   best: number | null;
   isTouch: boolean;
+  /** Meta-progression; omitted in bare renders (tests) → journey card hidden. */
+  profile?: Profile;
+  /** Closest-to-done achievements, nearest first (goal-gradient order). */
+  nearest?: AchievementProgress[];
+  onAccent?: (id: string) => void;
 }
 
-export function StartScreen({ onPlay, onScores, muted, onToggleMute, best, isTouch }: Props): ReactElement {
+function streakLine(profile: Profile): string {
+  const { current } = profile.streak;
+  if (current >= 2) return `${current}-day streak`;
+  if (current === 1) return "streak started";
+  return "start a streak";
+}
+
+export function StartScreen({
+  onPlay,
+  onScores,
+  muted,
+  onToggleMute,
+  best,
+  isTouch,
+  profile,
+  nearest,
+  onAccent,
+}: Props): ReactElement {
   return (
     <div className="overlay">
       <div className="panel px-6 py-7 text-center sm:px-8">
@@ -26,18 +51,30 @@ export function StartScreen({ onPlay, onScores, muted, onToggleMute, best, isTou
         <h1 className="title-grad font-display text-[2.6rem] leading-none font-black tracking-tight sm:text-5xl">
           GRIDBOX
         </h1>
-        <div className="mt-2 font-display text-xs font-bold tracking-[0.45em] text-amber-300 sm:text-sm">
+        <div className="mt-2 font-display text-xs font-bold tracking-[0.45em] text-bloom-400 sm:text-sm">
           INTELLIGENCE
         </div>
-        <p className="mx-auto mt-4 max-w-xs text-base leading-snug font-medium text-slate-300">
-          Harvest data chips. Outsmart the machines. <span className="text-cyan-300">Pulse</span> to purge them.
+        <p className="mx-auto mt-4 max-w-xs text-base leading-snug font-medium text-veil-200">
+          Harvest data chips. Outsmart the machines. <span className="text-bloom-400">Pulse</span> to purge them.
         </p>
 
-        {best !== null && (
-          <div className="mt-3 text-xs font-semibold tracking-[0.25em] text-slate-400">
-            BEST <span className="font-display text-amber-300">{best}</span>
-          </div>
-        )}
+        <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
+          {best !== null && (
+            <div className="text-xs font-semibold tracking-[0.25em] text-veil-300">
+              BEST <span className="font-display text-bloom-400">{best}</span>
+            </div>
+          )}
+          {profile &&
+            (profile.streak.current > 0 ? (
+              <span className="chip" title="Consecutive days with at least one run">
+                <span aria-hidden>◆</span> {streakLine(profile)}
+              </span>
+            ) : (
+              <span className="chip chip-quiet">
+                <span aria-hidden>◆</span> {streakLine(profile)}
+              </span>
+            ))}
+        </div>
 
         <div className="mt-6 flex flex-col items-center gap-3">
           <Button variant="primary" glow className="w-full max-w-[260px] text-base" onClick={onPlay} autoFocus>
@@ -49,23 +86,60 @@ export function StartScreen({ onPlay, onScores, muted, onToggleMute, best, isTou
             </Button>
             <MuteButton muted={muted} onToggle={onToggleMute} />
           </div>
-          <div className="text-[11px] font-semibold tracking-[0.2em] text-slate-500">
+          <div className="text-[11px] font-semibold tracking-[0.2em] text-veil-300">
             {isTouch ? "TAP PLAY TO START" : "PRESS ENTER TO START"}
           </div>
         </div>
 
+        {profile && nearest && nearest.length > 0 && (
+          <div className="mt-6 rounded-xl border border-bloom-500/20 bg-ink-900/50 p-3 text-left">
+            <div className="mb-2 text-[10px] font-bold tracking-[0.25em] text-bloom-400">SO CLOSE</div>
+            <ul className="flex flex-col gap-2.5">
+              {nearest.map((pr) => (
+                <ProgressRail key={pr.def.id} progress={pr} />
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {profile && (
+          <div className="mt-3 flex items-center justify-between gap-3 rounded-xl border border-ink-700/60 bg-ink-900/50 px-3 py-2.5">
+            <div className="text-[10px] font-bold tracking-[0.25em] text-veil-300">YOUR LOOK</div>
+            <div className="flex gap-2" role="radiogroup" aria-label="Player colour">
+              {ACCENTS.map((a) => {
+                const selected = profile.accent === a.id;
+                return (
+                  <button
+                    key={a.id}
+                    type="button"
+                    role="radio"
+                    aria-checked={selected}
+                    aria-label={a.label}
+                    title={a.label}
+                    onClick={() => onAccent?.(a.id)}
+                    className={`h-7 w-7 cursor-pointer rounded-full border-2 transition-transform ${
+                      selected ? "scale-110 border-veil-100" : "border-ink-700 hover:scale-105"
+                    }`}
+                    style={{ background: a.player, boxShadow: selected ? `0 0 12px ${a.player}aa` : "none" }}
+                  />
+                );
+              })}
+            </div>
+          </div>
+        )}
+
         <div className="mt-6 grid grid-cols-1 gap-2 text-left text-sm sm:grid-cols-2">
-          <div className="rounded-xl border border-slate-700/60 bg-slate-900/50 p-3">
-            <div className="mb-1.5 text-[10px] font-bold tracking-[0.25em] text-cyan-300">MOVE</div>
+          <div className="rounded-xl border border-ink-700/60 bg-ink-900/50 p-3">
+            <div className="mb-1.5 text-[10px] font-bold tracking-[0.25em] text-bloom-400">MOVE</div>
             {isTouch ? (
-              <div className="font-medium text-slate-300">Swipe the grid or use the D-pad. Hold to keep moving.</div>
+              <div className="font-medium text-veil-200">Swipe the grid or use the D-pad. Hold to keep moving.</div>
             ) : (
-              <div className="flex flex-wrap items-center gap-1 font-medium text-slate-300">
+              <div className="flex flex-wrap items-center gap-1 font-medium text-veil-200">
                 <span className="kbd">W</span>
                 <span className="kbd">A</span>
                 <span className="kbd">S</span>
                 <span className="kbd">D</span>
-                <span className="mx-1 text-slate-500">or</span>
+                <span className="mx-1 text-veil-300">or</span>
                 <span className="kbd">↑</span>
                 <span className="kbd">←</span>
                 <span className="kbd">↓</span>
@@ -73,12 +147,12 @@ export function StartScreen({ onPlay, onScores, muted, onToggleMute, best, isTou
               </div>
             )}
           </div>
-          <div className="rounded-xl border border-slate-700/60 bg-slate-900/50 p-3">
-            <div className="mb-1.5 text-[10px] font-bold tracking-[0.25em] text-cyan-300">PULSE</div>
-            <div className="font-medium text-slate-300">
+          <div className="rounded-xl border border-ink-700/60 bg-ink-900/50 p-3">
+            <div className="mb-1.5 text-[10px] font-bold tracking-[0.25em] text-bloom-400">PULSE</div>
+            <div className="font-medium text-veil-200">
               {isTouch ? (
                 <>
-                  Tap <span className="font-display text-xs text-cyan-200">PULSE</span>
+                  Tap <span className="font-display text-xs text-bloom-300">PULSE</span>
                 </>
               ) : (
                 <>
@@ -90,13 +164,13 @@ export function StartScreen({ onPlay, onScores, muted, onToggleMute, best, isTou
           </div>
         </div>
 
-        <div className="mt-3 rounded-xl border border-amber-400/20 bg-amber-400/5 p-3 text-left text-sm font-medium text-slate-300">
-          <span className="text-amber-300">Chain chips quickly</span> to build a combo multiplier — up to ×8. Getting
+        <div className="mt-3 rounded-xl border border-bloom-500/20 bg-bloom-500/5 p-3 text-left text-sm font-medium text-veil-200">
+          <span className="text-bloom-400">Chain chips quickly</span> to build a combo multiplier — up to ×8. Getting
           hit resets it.
         </div>
 
         <div className="mt-4 text-left">
-          <div className="mb-2 text-[10px] font-bold tracking-[0.25em] text-slate-400">THREAT TIERS</div>
+          <div className="mb-2 text-[10px] font-bold tracking-[0.25em] text-veil-300">THREAT TIERS</div>
           <ul className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
             {KINDS.map((k) => (
               <li key={k.name} className="flex items-center gap-2.5 text-xs">
@@ -110,7 +184,7 @@ export function StartScreen({ onPlay, onScores, muted, onToggleMute, best, isTou
                 >
                   {k.name}
                 </span>
-                <span className="leading-tight font-medium text-slate-400">{k.desc}</span>
+                <span className="leading-tight font-medium text-veil-300">{k.desc}</span>
               </li>
             ))}
           </ul>

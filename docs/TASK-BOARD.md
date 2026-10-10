@@ -78,10 +78,11 @@ policies in `0001_rls.sql` are load-bearing rather than decorative.
 
 ## Stage 3 — Core hardening & backend
 
-- [ ] 3.1 `core/ports`: `Rng`, `KeyValueStore`, `Clock`, `AudioSink`, `Telemetry`, `Logger`
-- [ ] 3.2 `core/adapters`: seeded `mulberry32` RNG (enables F1 daily + F7 replay + deterministic tests),
-      schema-versioned Zod storage, WebAudio adapter, no-op telemetry
-- [ ] 3.3 Error boundary + RAF watchdog + dev error overlay
+- [x] 3.1 `core/ports`: `Rng`, `KeyValueStore`, `Clock`, `AudioSink`, `Telemetry`, `Logger`
+- [x] 3.2 `core/adapters`: seeded `mulberry32` RNG (enables F1 daily + F7 replay + deterministic tests),
+      schema-versioned storage, WebAudio adapter, no-op telemetry — **deviation:** storage validation is
+      hand-rolled, not Zod (Zod cost +88 kB on the client; see `scoring.ts` for the rationale)
+- [~] 3.3 Error boundary + RAF watchdog + dev error overlay
 - [ ] 3.4 Fix A3–A9: SSR guard, render-time side effects, RAF teardown on resize, UUID ids,
       font-metric stabilisation, storage validation
 - [ ] 3.5 Unit tests: engine rules, BFS distance fields, difficulty curves, combo/pulse/shield logic, storage, `sanitizeName`
@@ -97,6 +98,13 @@ policies in `0001_rls.sql` are load-bearing rather than decorative.
 
 ## Stage 4 — Frontend, integration, accessibility
 
+- [x] 4.0 **Palette UI + psychology engagement layer** (user-directed)
+      — Design tokens from the user's 3-colour palette (Midnight Violet `#1f0322`, Dark Magenta
+        `#8a1c7c`, Magenta Bloom `#da4167`), WCAG-checked scale, canvas world retinted;
+        research synthesis in `docs/PSYCHOLOGY-DESIGN.md`; persistent profile + play-streaks;
+        12 achievements with **endowed progress** + **goal-gradient** rails ("SO CLOSE",
+        nearest-first); personal-best badge; one-more-run nudge on the death recap;
+        player-sprite accent picker (5 presets); unlock toasts
 - [ ] 4.1 Composition root: replace direct engine coupling in `App.tsx` with `app/` providers + typed hooks
 - [ ] 4.2 Loading / error / empty / offline states; retry + exponential backoff for leaderboard sync
 - [ ] 4.3 **F2** combo rebalance (tapering window, decay to ×4) + **F3** score rebalance (kill values, graze reward)
@@ -147,6 +155,18 @@ policies in `0001_rls.sql` are load-bearing rather than decorative.
 | husky pre-commit (lint-staged) + commit-msg (commitlint) | ✅ installed and verified |
 | Generated migrations | ✅ `0000_init.sql`, `0001_rls.sql` |
 | `npx vitest run` (final, after API fixes) | ✅ **206 tests / 21 files passing** |
+
+### Stage 3/4 — palette + engagement layer
+
+| Check | Result |
+|---|---|
+| Palette contrast audit | ✅ all text pairs ≥ 4.5:1, non-text ≥ 3:1 (ratios recorded in `index.css`) |
+| UI + canvas rethemed | ✅ screenshots verified: menu, run, pause, scores, death recap |
+| Psychology research | ✅ `docs/PSYCHOLOGY-DESIGN.md` — 8 cited sources, feature mapping, ethics constraints |
+| Profile / streaks / achievements | ✅ pure domain on `KeyValueStore` port, hand-validated, 24 unit tests |
+| `npx vitest run` | ✅ **240 tests / 25 files passing** |
+| `npm run typecheck` / `eslint --quiet` / `prettier --check` | ✅ 0 / 0 / clean |
+| `npm run build` | ✅ 291.27 kB (89.96 kB gzip) single file |
 
 ### Database — live
 

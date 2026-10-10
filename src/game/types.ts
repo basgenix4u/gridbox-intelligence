@@ -92,6 +92,8 @@ export interface RunStats {
   maxCombo: number;
   kills: number;
   timeMs: number;
+  /** Most machines ever purged by one pulse in this run. */
+  bestPulseKills: number;
 }
 
 export type GameMode = "attract" | "playing" | "dead";
