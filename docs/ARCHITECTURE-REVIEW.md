@@ -1,8 +1,21 @@
 # Gridbox Intelligence — Stage 1: Architecture Review & Validation
 
-> **Stage 1 deliverable (awaiting approval before Stage 2).**
+> **Stage 1 deliverable — COMPLETE.**
 > Prepared by the Software Factory team: Principal PM · Lead Architect · Senior Full-Stack Eng · DevOps/SRE · UI/UX · QA Automation.
 > Date: 2026-10-10 · Repo: [github.com/basgenix4u/gridbox-intelligence](https://github.com/basgenix4u/gridbox-intelligence)
+
+> ## ✅ Status: questions in §8 are RESOLVED
+>
+> | Ref | Decision |
+> |---|---|
+> | Q1 PRD | **Absent — inferred.** No PRD will be supplied; this document + the product teardown are the derived spec |
+> | Q2 Scope | **The game.** "Portfolio website" was boilerplate |
+> | Q3 Architecture | **Option B** — full-stack leaderboard |
+> | Q4 Deploy | **Vercel + Supabase** (API = Hono on Vercel Functions, not standalone Fastify) |
+>
+> **Next documents:** [`PRODUCT-TEARDOWN.md`](./PRODUCT-TEARDOWN.md) (mechanics, balance data, feature
+> & UX backlogs, schema, API contracts, release plan) ·
+> **[`TASK-BOARD.md`](./TASK-BOARD.md) — the canonical task board (this file's §7 board is superseded).**
 
 ---
 
@@ -266,7 +279,11 @@ gridbox-intelligence/
 
 ---
 
-## 7. Master task board
+## 7. Master task board — **SUPERSEDED**
+
+> ⚠️ The board below is the *original* Stage-1 board and is kept for the record.
+> The **canonical, live board is [`docs/TASK-BOARD.md`](./TASK-BOARD.md)**, which reflects the
+> Vercel + Supabase decisions and the product backlog.
 
 Legend: `[ ]` Pending · `[~]` **In Progress (exactly one)** · `[x]` Completed
 
@@ -324,21 +341,21 @@ Legend: `[ ]` Pending · `[~]` **In Progress (exactly one)** · `[x]` Completed
 
 ---
 
-## 8. Blocking questions (must be answered before Stage 2)
+## 8. Blocking questions — **RESOLVED 2026-10-10**
 
-| # | Question | Why it blocks |
+| # | Question | Answer |
 |---|---|---|
-| **Q1** | **The PRD is missing.** The Google Doc at the link you sent contains only your GitHub PAT — there is no PRD text. Please re-share the PRD (paste it, or a Doc that is set to "anyone with the link → Viewer"). | Your brief states the PRD is the single source of truth. Without it I would be inventing requirements. |
-| **Q2** | **Scope:** the brief describes a *project portfolio website*; the zip is *Gridbox Intelligence*, an arcade game. Which is the deliverable — the game, a portfolio site, or a portfolio site that showcases the game? | Determines the entire product surface. |
-| **Q3** | **Backend:** Option A (client-only, hardened, zero infra) or Option B (add Fastify + Postgres global leaderboard, auth, anti-cheat)? | Option B roughly doubles the work and adds hosting cost. |
-| **Q4** | **Deploy target:** GitHub Pages (free, static — Option A only), Vercel/Netlify, Fly.io/Render (needed for Option B), or self-hosted Docker? | Drives CI/CD, Dockerfile and hosting config. |
+| **Q1** | The PRD is missing — the linked Google Doc contained only the GitHub PAT. | **Infer.** No PRD will be supplied. This document plus [`PRODUCT-TEARDOWN.md`](./PRODUCT-TEARDOWN.md) constitute the derived spec and are the single source of truth unless overridden. |
+| **Q2** | Brief describes a *portfolio website*; the zip is *Gridbox Intelligence*, an arcade game. | **The game.** "Project portfolio website" was boilerplate in the brief. |
+| **Q3** | Option A (client-only) or Option B (full-stack leaderboard)? | **Option B.** Note: the API layer is **Hono on Vercel Serverless Functions**, not standalone Fastify — Fastify targets a long-running Node process, whereas Hono is edge-compatible, ~14 kB, and natively supported on Vercel. |
+| **Q4** | Deploy target? | **Vercel (SPA + serverless API) + Supabase (Postgres).** Redis for rate limiting via Upstash. |
 
 ---
 
-## 9. Immediate recommendation
+## 9. Status
 
-Do **not** start Stage 2 until Q1 and Q2 are answered. Q3 and Q4 can be answered in parallel
-(Option A + GitHub Pages is the sensible default if you are unsure).
+Stage 1 is complete and the decisions above are locked in. Stage 2 does not begin until the product
+teardown, feature scope and release plan are approved.
 
-*Everything already delivered is safe and reversible: the repo exists, the untouched baseline is
-committed and pushed, and the current build is running live in your preview pane.*
+*Everything delivered so far is safe and reversible: the repo exists, the untouched baseline is
+committed and pushed, and the current build runs live in the preview pane.*
