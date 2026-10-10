@@ -417,7 +417,11 @@ function drawHUD(g: Game, ctx: CanvasRenderingContext2D, ui: number): void {
     const x = segX0 + i * (sw + segGap) + shake;
     const y = cyc - shh / 2;
     rr(ctx, x, y, sw, shh, 2);
-    ctx.fillStyle = filled ? (ready ? rgba(COLORS.player, 0.75 + 0.25 * glowA) : "rgba(34,211,238,0.7)") : "rgba(148,163,184,0.15)";
+    ctx.fillStyle = filled
+      ? ready
+        ? rgba(COLORS.player, 0.75 + 0.25 * glowA)
+        : "rgba(34,211,238,0.7)"
+      : "rgba(148,163,184,0.15)";
     ctx.fill();
     if (filled && i === g.charge - 1 && g.chargePop > 0) {
       ctx.fillStyle = rgba(COLORS.white, g.chargePop * 0.7);

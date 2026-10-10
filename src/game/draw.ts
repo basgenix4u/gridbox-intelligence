@@ -1,11 +1,4 @@
-export function rr(
-  ctx: CanvasRenderingContext2D,
-  x: number,
-  y: number,
-  w: number,
-  h: number,
-  r: number,
-): void {
+export function rr(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number): void {
   const rad = Math.max(0, Math.min(r, w / 2, h / 2));
   ctx.beginPath();
   ctx.moveTo(x + rad, y);
@@ -41,8 +34,18 @@ export function setLetterSpacing(ctx: CanvasRenderingContext2D, px: number): voi
   if ("letterSpacing" in c) c.letterSpacing = `${px}px`;
 }
 
+/**
+ * Parses a `#rrggbb` (or `rrggbb`) colour.
+ *
+ * Throws on anything else: a silently mis-parsed colour renders as a wrong
+ * pixel value that is very hard to trace back here.
+ */
 export function hexToRgb(hex: string): { r: number; g: number; b: number } {
-  const n = parseInt(hex.slice(1), 16);
+  const value = hex.trim().replace(/^#/, "");
+  if (!/^[0-9a-fA-F]{6}$/.test(value)) {
+    throw new Error(`hexToRgb: invalid hex colour ${JSON.stringify(hex)}`);
+  }
+  const n = parseInt(value, 16);
   return { r: (n >> 16) & 255, g: (n >> 8) & 255, b: n & 255 };
 }
 

@@ -24,7 +24,9 @@ import {
 } from "./constants";
 import { bfs, chebyshev, manhattan } from "./ai";
 import { ParticleSystem } from "./particles";
-import { Synth } from "./audio";
+import { createRng } from "@/core/adapters/seededRng";
+import type { AudioSink } from "@/core/ports/audio";
+import type { Rng } from "@/core/ports/rng";
 import { SpriteCache } from "./sprites";
 import {
   DIRS,
@@ -62,10 +64,12 @@ export class Game {
   popups: Popup[] = [];
   rings: Ring[] = [];
   ghosts: Ghost[] = [];
-  particles = new ParticleSystem();
+  particles: ParticleSystem;
+  /** Seeded source of every gameplay decision. See `createRng`. */
+  readonly rng: Rng;
   banner: Banner | null = null;
   sprites = new SpriteCache();
-  audio: Synth;
+  audio: AudioSink;
 
   mode: GameMode = "attract";
   paused = false;
@@ -121,10 +125,16 @@ export class Game {
   private predIdx = -1;
 
   layout: Layout = { W: 320, H: 420, cell: 32, ox: 10, oy: 70, hudH: 60, botH: 30, pad: 10, dpr: 1 };
-  callbacks: GameCallbacks = { onGameOver: () => {}, onChargeReady: () => {} };
+  callbacks: GameCallbacks = {
+    onGameOver: () => undefined,
+    onChargeReady: () => undefined,
+  };
 
-  constructor(audio: Synth) {
+  constructor(audio: AudioSink, rng: Rng = createRng()) {
     this.audio = audio;
+    this.rng = rng;
+    // FX get a forked stream, so particle churn can never desync gameplay.
+    this.particles = new ParticleSystem(rng.fork(0x9e3779b9));
     this.player = this.makePlayer();
     this.startAttract();
   }
@@ -275,12 +285,12 @@ export class Game {
     const w = this.walls;
     for (let attempt = 0; attempt < 60; attempt++) {
       w.fill(0);
-      const pairs = 4 + Math.floor(Math.random() * 2);
+      const pairs = 4 + this.rng.int(2);
       let placed = 0;
       let guard = 0;
       while (placed < pairs && guard++ < 300) {
-        const x = 1 + Math.floor(Math.random() * 4); // left half (mirrored)
-        const y = 1 + Math.floor(Math.random() * 7);
+        const x = 1 + this.rng.int(4); // left half (mirrored)
+        const y = 1 + this.rng.int(7);
         if (Math.abs(x - 4) <= 1 && Math.abs(y - 4) <= 1) continue; // keep the center clear
         const i = y * COLS + x;
         const j = y * COLS + (COLS - 1 - x);
@@ -334,8 +344,8 @@ export class Game {
     }
     const pool = good.length ? good : any;
     if (!pool.length) return;
-    const i = pool[(Math.random() * pool.length) | 0];
-    this.chips.push({ gx: i % COLS, gy: (i / COLS) | 0, phase: Math.random() * Math.PI * 2, anim: 0 });
+    const i = this.rng.pick(pool);
+    this.chips.push({ gx: i % COLS, gy: (i / COLS) | 0, phase: this.rng.range(0, Math.PI * 2), anim: 0 });
     this.fieldsDirty = true;
   }
 
@@ -351,13 +361,13 @@ export class Game {
       cands.push(i);
     }
     if (!cands.length) return;
-    const i = cands[(Math.random() * cands.length) | 0];
+    const i = this.rng.pick(cands);
     this.spawners.push({ gx: i % COLS, gy: (i / COLS) | 0, kind: this.pickKind(), t: 0, total: SPAWN_TELEGRAPH });
   }
 
   private pickKind(): number {
     const w = kindWeights(this.effLevel);
-    let r = Math.random();
+    let r = this.rng.next();
     for (let k = 0; k < w.length; k++) {
       r -= w[k];
       if (r <= 0) return k;
@@ -381,7 +391,7 @@ export class Game {
       sx: 1,
       sy: 1,
       dead: false,
-      seed: Math.random() * Math.PI * 2,
+      seed: this.rng.range(0, Math.PI * 2),
     });
     this.burst(s.gx, s.gy, 10, KINDS[s.kind].color, 3.5, this.layout.cell * 0.1, 400);
     this.audio.spawn();
@@ -430,7 +440,8 @@ export class Game {
       dtw = 0;
     }
     if (this.mode !== "dead" && this.timeScale < 1) this.timeScale = Math.min(1, this.timeScale + real * 0.0028);
-    else if (this.mode === "dead" && this.timeScale < 0.6) this.timeScale = Math.min(0.6, this.timeScale + real * 0.00028);
+    else if (this.mode === "dead" && this.timeScale < 0.6)
+      this.timeScale = Math.min(0.6, this.timeScale + real * 0.00028);
     this.trauma = Math.max(0, this.trauma - real * 0.0021);
     if (this.flash.a > 0) this.flash.a = Math.max(0, this.flash.a - real * 0.0035);
     this.comboPop = Math.max(0, this.comboPop - real * 0.004);
@@ -599,7 +610,7 @@ export class Game {
     const p = this.player;
     switch (e.kind) {
       case 0: // drone: half random, half greedy
-        if (Math.random() < 0.45) return cands[(Math.random() * cands.length) | 0];
+        if (this.rng.chance(0.45)) return this.rng.pick(cands);
         return this.pickBest(cands, e, (x, y) => manhattan(x, y, p.gx, p.gy));
       case 1: // hunter: greedy straight-line chase
         return this.pickBest(cands, e, (x, y) => manhattan(x, y, p.gx, p.gy));
@@ -635,7 +646,7 @@ export class Game {
       } else if (Math.abs(c - best) < 1e-9) {
         // reservoir sampling among ties
         count++;
-        if (Math.random() < 1 / count) chosen = d;
+        if (this.rng.chance(1 / count)) chosen = d;
       }
     }
     return chosen;
@@ -682,7 +693,7 @@ export class Game {
     this.autopilotTimer -= dt;
     const p = this.player;
     if (this.autopilotTimer > 0 || p.cooldown > 0) return;
-    this.autopilotTimer = 150 + Math.random() * 90;
+    this.autopilotTimer = this.rng.range(150, 240);
     this.ensureFields();
 
     const danger = (x: number, y: number): number => {
@@ -710,7 +721,7 @@ export class Game {
       const nx = p.gx + DX[d];
       const ny = p.gy + DY[d];
       if (!this.walkable(nx, ny)) continue;
-      const v = value(nx, ny) + Math.random() * 0.2;
+      const v = value(nx, ny) + this.rng.range(0, 0.2);
       if (v < bestV) {
         bestV = v;
         bestD = d;
@@ -721,7 +732,7 @@ export class Game {
     if (this.charge >= PULSE_COST) {
       let n = 0;
       for (const e of this.enemies) if (!e.dead && chebyshev(e.gx, e.gy, p.gx, p.gy) <= PULSE_RADIUS) n++;
-      if (n >= 2 || (n === 1 && Math.random() < 0.25)) this.pulse();
+      if (n >= 2 || (n === 1 && this.rng.chance(0.25))) this.pulse();
     }
   }
 
@@ -794,7 +805,13 @@ export class Game {
     this.burst(c.gx, c.gy, 6, COLORS.chipLight, 2.5, cell * 0.08, 400);
     this.trauma = Math.max(this.trauma, 0.14);
     if (this.combo === 4 || this.combo === 6 || this.combo === MAX_COMBO) {
-      this.addPopup(c.gx, c.gy - 0.75, this.combo === MAX_COMBO ? "MAX COMBO!" : `COMBO ×${this.combo}`, COLORS.white, 12);
+      this.addPopup(
+        c.gx,
+        c.gy - 0.75,
+        this.combo === MAX_COMBO ? "MAX COMBO!" : `COMBO ×${this.combo}`,
+        COLORS.white,
+        12,
+      );
     }
     if (this.charge < PULSE_COST) {
       this.charge++;
@@ -853,7 +870,15 @@ export class Game {
       this.hitstop = 120;
       this.burst(p.gx, p.gy, 70, COLORS.player, 9, cell * 0.2, 1400);
       this.burst(p.gx, p.gy, 30, COLORS.red, 6, cell * 0.14, 1200);
-      this.rings.push({ gx: p.gx, gy: p.gy, t: 0, life: 900, maxR: cell * 4, color: COLORS.player, width: cell * 0.25 });
+      this.rings.push({
+        gx: p.gx,
+        gy: p.gy,
+        t: 0,
+        life: 900,
+        maxR: cell * 4,
+        color: COLORS.player,
+        width: cell * 0.25,
+      });
       this.rings.push({ gx: p.gx, gy: p.gy, t: 0, life: 1200, maxR: cell * 5.5, color: COLORS.red, width: cell * 0.1 });
       this.audio.death();
       this.buzz([60, 40, 120]);
@@ -897,9 +922,33 @@ export class Game {
     this.setChargeReady(false);
     const cell = this.layout.cell;
     const L = this.layout;
-    this.rings.push({ gx: p.gx, gy: p.gy, t: 0, life: 520, maxR: cell * (PULSE_RADIUS + 0.6), color: COLORS.player, width: cell * 0.22 });
-    this.rings.push({ gx: p.gx, gy: p.gy, t: 0, life: 680, maxR: cell * (PULSE_RADIUS + 1), color: COLORS.white, width: cell * 0.07 });
-    this.particles.ring(L.ox + (p.gx + 0.5) * cell, L.oy + (p.gy + 0.5) * cell, COLORS.player, 36, 7 * (cell / 48), cell * 0.12, 650);
+    this.rings.push({
+      gx: p.gx,
+      gy: p.gy,
+      t: 0,
+      life: 520,
+      maxR: cell * (PULSE_RADIUS + 0.6),
+      color: COLORS.player,
+      width: cell * 0.22,
+    });
+    this.rings.push({
+      gx: p.gx,
+      gy: p.gy,
+      t: 0,
+      life: 680,
+      maxR: cell * (PULSE_RADIUS + 1),
+      color: COLORS.white,
+      width: cell * 0.07,
+    });
+    this.particles.ring(
+      L.ox + (p.gx + 0.5) * cell,
+      L.oy + (p.gy + 0.5) * cell,
+      COLORS.player,
+      36,
+      7 * (cell / 48),
+      cell * 0.12,
+      650,
+    );
 
     let n = 0;
     for (const e of this.enemies) {

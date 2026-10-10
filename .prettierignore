@@ -1,0 +1,8 @@
+dist
+coverage
+node_modules
+.vercel
+playwright-report
+test-results
+package-lock.json
+*.md

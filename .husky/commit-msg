@@ -1,0 +1,2 @@
+# Conventional Commits keep the changelog and release notes machine-generated.
+npx --no-install commitlint --edit "$1"

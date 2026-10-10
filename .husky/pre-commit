@@ -1,0 +1,2 @@
+# Fast, targeted checks on staged files only. The full gate runs in CI.
+npx --no-install lint-staged
