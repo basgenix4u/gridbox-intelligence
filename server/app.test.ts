@@ -87,6 +87,28 @@ describe("GET /v1/readyz", () => {
   });
 });
 
+describe("base path", () => {
+  it("serves the routes under an /api prefix, as Vercel invokes them", async () => {
+    const app = createApp({ env: baseEnv, envSource: { NODE_ENV: "test" }, db: null, basePath: "/api" });
+    const res = await app.request("/api/v1/healthz");
+    expect(res.status).toBe(200);
+    expect(((await res.json()) as { status: string }).status).toBe("ok");
+  });
+
+  it("still 404s an unknown path under the prefix", async () => {
+    const app = createApp({ env: baseEnv, envSource: { NODE_ENV: "test" }, db: null, basePath: "/api" });
+    const res = await app.request("/api/v1/missing");
+    expect(res.status).toBe(404);
+    expect(((await res.json()) as { error: { code: string } }).error.code).toBe("NOT_FOUND");
+  });
+
+  it("does not answer the unprefixed path when a prefix is set", async () => {
+    const app = createApp({ env: baseEnv, envSource: { NODE_ENV: "test" }, db: null, basePath: "/api" });
+    const res = await app.request("/v1/healthz");
+    expect(res.status).toBe(404);
+  });
+});
+
 describe("request handling", () => {
   it("echoes and generates a request id", async () => {
     const app = createApp({ env: baseEnv, envSource: { NODE_ENV: "test" }, db: null });

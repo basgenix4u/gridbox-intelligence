@@ -15,6 +15,12 @@ export interface AppOptions {
   db?: Database | null;
   /** Epoch ms — injected so /healthz is deterministic. */
   startedAt?: number;
+  /**
+   * Mount path for the whole API. Vercel serves this function under `/api`, so
+   * the incoming path is `/api/v1/healthz` while the routes are declared as
+   * `/v1/healthz`. Default `"/"` keeps local and test usage unprefixed.
+   */
+  basePath?: string;
 }
 
 export interface AppBindings {
@@ -56,7 +62,9 @@ export function createApp(options: AppOptions = {}): Hono<AppBindings> {
     return createDatabase(env.DATABASE_URL);
   };
 
-  app.get("/v1/healthz", (c) =>
+  const api = new Hono<AppBindings>();
+
+  api.get("/v1/healthz", (c) =>
     c.json({
       status: "ok",
       version: env.SERVICE_VERSION,
@@ -66,7 +74,7 @@ export function createApp(options: AppOptions = {}): Hono<AppBindings> {
     }),
   );
 
-  app.get("/v1/readyz", async (c) => {
+  api.get("/v1/readyz", async (c) => {
     const problems: string[] = [...envResult.errors];
     let database: "up" | "down" | "not-configured" = "not-configured";
 
@@ -88,6 +96,9 @@ export function createApp(options: AppOptions = {}): Hono<AppBindings> {
     }
     return c.json({ status: "ready", database, version: env.SERVICE_VERSION });
   });
+
+  const basePath = options.basePath ?? "/";
+  app.route(basePath, api);
 
   app.notFound((c) =>
     c.json(errorBody("NOT_FOUND", `No route for ${c.req.method} ${c.req.path}`, undefined, c.get("requestId")), 404),
