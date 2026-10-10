@@ -52,10 +52,10 @@ export function TouchControls({ game, pulseReady, landscape, onPause, onUnlockAu
 
   return (
     <div
-      className={`flex items-center justify-center gap-7 select-none ${landscape ? "flex-col" : "flex-row"}`}
-      style={landscape ? { width: TOUCH_W - 20 } : { height: TOUCH_H - 16 }}
+      className={`flex items-center justify-center gap-4 select-none sm:gap-6 ${landscape ? "flex-col" : "flex-row"}`}
+      style={landscape ? { minWidth: TOUCH_W - 20 } : { minHeight: TOUCH_H - 16 }}
     >
-      <div className="grid grid-cols-3 grid-rows-3 gap-1.5">
+      <div className="grid grid-cols-3 grid-rows-3 gap-1 sm:gap-1.5">
         <span />
         {dirBtn(0)}
         <span />
@@ -69,7 +69,7 @@ export function TouchControls({ game, pulseReady, landscape, onPause, onUnlockAu
         <span />
       </div>
 
-      <div className={`flex items-center gap-3 ${landscape ? "flex-row" : "flex-col"}`}>
+      <div className={`flex items-center gap-2.5 sm:gap-3 ${landscape ? "flex-row" : "flex-col"}`}>
         <button type="button" className="small-btn" aria-label="Pause" onClick={onPause}>
           <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden>
             <rect x="6" y="4" width="4" height="16" rx="1" fill="currentColor" />

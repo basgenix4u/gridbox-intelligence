@@ -51,7 +51,7 @@ export function GameOverScreen({
         </h2>
 
         <div className="mt-5 text-[11px] font-bold tracking-[0.3em] text-veil-300">FINAL SCORE</div>
-        <div className="font-display text-5xl leading-none font-black text-white drop-shadow-[0_0_18px_rgba(218,65,103,0.45)] sm:text-6xl">
+        <div className="font-display text-[clamp(2.4rem,11vw,3.6rem)] leading-none font-black text-white drop-shadow-[0_2px_12px_rgba(218,65,103,0.3)]">
           {stats.score}
         </div>
 
@@ -74,7 +74,7 @@ export function GameOverScreen({
         )}
 
         {nudge && (
-          <div className="mx-auto mt-4 max-w-xs rounded-xl border border-bloom-500/25 bg-bloom-500/5 px-4 py-3 text-left">
+          <div className="card card-accent mx-auto mt-4 max-w-xs px-4 py-3 text-left">
             <div className="text-[10px] font-bold tracking-[0.25em] text-bloom-400">SO CLOSE</div>
             <div className="mt-1 text-sm font-medium text-veil-200">
               Just <span className="font-display text-bloom-300">{nudge.remaining}</span> more to unlock{" "}
@@ -93,7 +93,7 @@ export function GameOverScreen({
         )}
 
         {isHigh && (
-          <div className="mt-5 rounded-xl border border-bloom-500/40 bg-bloom-500/10 px-4 py-3">
+          <div className="card card-accent mt-5 px-4 py-3">
             <div className="font-display text-xs font-bold tracking-[0.3em] text-bloom-400">
               {isTop ? "NEW #1 HIGH SCORE" : `NEW HIGH SCORE · #${rank}`}
             </div>

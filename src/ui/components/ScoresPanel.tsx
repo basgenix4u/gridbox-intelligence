@@ -16,14 +16,14 @@ export function ScoreTable({ scores, highlightId, limit = MAX_SCORES, compact = 
   const rows = scores.slice(0, limit);
   if (!rows.length) {
     return (
-      <div className="rounded-xl border border-dashed border-ink-700 px-4 py-6 text-center text-sm font-medium text-veil-300">
+      <div className="card border-dashed px-4 py-6 text-center text-sm font-medium text-veil-300">
         No runs recorded yet. The grid awaits.
       </div>
     );
   }
   return (
-    <div className="overflow-hidden rounded-xl border border-ink-700/60">
-      <table className="w-full border-collapse text-left text-sm">
+    <div className="card overflow-hidden">
+      <table className="w-full table-fixed border-collapse text-left text-[13px]">
         <thead>
           <tr className="bg-ink-900/80 text-[10px] font-bold tracking-[0.2em] text-veil-300">
             <th className="py-2 pl-3 font-bold">#</th>

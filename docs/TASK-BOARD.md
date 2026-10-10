@@ -105,6 +105,16 @@ policies in `0001_rls.sql` are load-bearing rather than decorative.
         12 achievements with **endowed progress** + **goal-gradient** rails ("SO CLOSE",
         nearest-first); personal-best badge; one-more-run nudge on the death recap;
         player-sprite accent picker (5 presets); unlock toasts
+- [x] 4.0b **Mobile responsive pass + mature palette polish** (user-directed)
+      — Root-caused the mobile "overlaps / not fitted to scale": the decorative aurora layer
+        extended past the viewport and expanded the document scroll area by 66–174px, so mobile
+        browsers panned and shrank the whole layout. Contained it (`overflow: hidden`,
+        in-viewport drift). Fluid `clamp()` type and touch targets (44px floor), safe-area
+        insets, landscape panel widening, `table-fixed` score tables. Palette maturity pass:
+        deep-rose button fills (bloom-600/700, white label 5.3:1+), hairline borders instead
+        of gradient rims, calm veil labels with bloom reserved for accents, restrained glows.
+        Verified: 320/375/390 portrait + 667/844 landscape + 768 tablet — zero horizontal
+        overflow, zero clipped controls, overlay renders at every size
 - [ ] 4.1 Composition root: replace direct engine coupling in `App.tsx` with `app/` providers + typed hooks
 - [ ] 4.2 Loading / error / empty / offline states; retry + exponential backoff for leaderboard sync
 - [ ] 4.3 **F2** combo rebalance (tapering window, decay to ×4) + **F3** score rebalance (kill values, graze reward)
@@ -166,7 +176,8 @@ policies in `0001_rls.sql` are load-bearing rather than decorative.
 | Profile / streaks / achievements | ✅ pure domain on `KeyValueStore` port, hand-validated, 24 unit tests |
 | `npx vitest run` | ✅ **240 tests / 25 files passing** |
 | `npm run typecheck` / `eslint --quiet` / `prettier --check` | ✅ 0 / 0 / clean |
-| `npm run build` | ✅ 291.27 kB (89.96 kB gzip) single file |
+| `npm run build` | ✅ 290.10 kB (90.07 kB gzip) single file |
+| Mobile viewport matrix | ✅ 6 sizes 320→768: `docW == viewportW` everywhere, no clipped controls (was 66–174px overflow) |
 
 ### Database — live
 

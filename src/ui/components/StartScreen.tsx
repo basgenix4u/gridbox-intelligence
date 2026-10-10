@@ -48,9 +48,7 @@ export function StartScreen({
           </div>
         </div>
 
-        <h1 className="title-grad font-display text-[2.6rem] leading-none font-black tracking-tight sm:text-5xl">
-          GRIDBOX
-        </h1>
+        <h1 className="title-grad font-display leading-none font-black tracking-tight">GRIDBOX</h1>
         <div className="mt-2 font-display text-xs font-bold tracking-[0.45em] text-bloom-400 sm:text-sm">
           INTELLIGENCE
         </div>
@@ -92,8 +90,8 @@ export function StartScreen({
         </div>
 
         {profile && nearest && nearest.length > 0 && (
-          <div className="mt-6 rounded-xl border border-bloom-500/20 bg-ink-900/50 p-3 text-left">
-            <div className="mb-2 text-[10px] font-bold tracking-[0.25em] text-bloom-400">SO CLOSE</div>
+          <div className="card card-accent mt-6 p-3 text-left">
+            <div className="mb-2 text-[10px] font-bold tracking-[0.22em] text-bloom-400">SO CLOSE</div>
             <ul className="flex flex-col gap-2.5">
               {nearest.map((pr) => (
                 <ProgressRail key={pr.def.id} progress={pr} />
@@ -103,7 +101,7 @@ export function StartScreen({
         )}
 
         {profile && (
-          <div className="mt-3 flex items-center justify-between gap-3 rounded-xl border border-ink-700/60 bg-ink-900/50 px-3 py-2.5">
+          <div className="card mt-3 flex items-center justify-between gap-3 px-3 py-2.5">
             <div className="text-[10px] font-bold tracking-[0.25em] text-veil-300">YOUR LOOK</div>
             <div className="flex gap-2" role="radiogroup" aria-label="Player colour">
               {ACCENTS.map((a) => {
@@ -129,8 +127,8 @@ export function StartScreen({
         )}
 
         <div className="mt-6 grid grid-cols-1 gap-2 text-left text-sm sm:grid-cols-2">
-          <div className="rounded-xl border border-ink-700/60 bg-ink-900/50 p-3">
-            <div className="mb-1.5 text-[10px] font-bold tracking-[0.25em] text-bloom-400">MOVE</div>
+          <div className="card p-3">
+            <div className="mb-1.5 text-[10px] font-bold tracking-[0.22em] text-veil-300">MOVE</div>
             {isTouch ? (
               <div className="font-medium text-veil-200">Swipe the grid or use the D-pad. Hold to keep moving.</div>
             ) : (
@@ -147,8 +145,8 @@ export function StartScreen({
               </div>
             )}
           </div>
-          <div className="rounded-xl border border-ink-700/60 bg-ink-900/50 p-3">
-            <div className="mb-1.5 text-[10px] font-bold tracking-[0.25em] text-bloom-400">PULSE</div>
+          <div className="card p-3">
+            <div className="mb-1.5 text-[10px] font-bold tracking-[0.22em] text-veil-300">PULSE</div>
             <div className="font-medium text-veil-200">
               {isTouch ? (
                 <>
@@ -164,7 +162,7 @@ export function StartScreen({
           </div>
         </div>
 
-        <div className="mt-3 rounded-xl border border-bloom-500/20 bg-bloom-500/5 p-3 text-left text-sm font-medium text-veil-200">
+        <div className="card card-accent mt-3 p-3 text-left text-sm font-medium text-veil-200">
           <span className="text-bloom-400">Chain chips quickly</span> to build a combo multiplier — up to ×8. Getting
           hit resets it.
         </div>
