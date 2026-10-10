@@ -15,7 +15,7 @@
 | Release scope | **One release containing P0 + P1** (no separate v1.1.0) |
 | Rebalance | **Approved.** Combo tapering + kill-value rebalance. Existing local scores are **preserved and tagged** as legacy scoring, not deleted |
 | Names | **Both** — long display name on the profile, 3-char initials in compact leaderboard rows → requires profanity filtering, moderation queue and report flow |
-| Supabase | **User's own project.** Credentials pending; all code is config-driven via `DATABASE_URL` so nothing blocks |
+| Supabase | **Blocked — see "Supabase blocker" below.** All code is config-driven via `DATABASE_URL`, so stages 3.1–3.6 are unblocked |
 
 ---
 
@@ -39,9 +39,26 @@
 - [x] 2.3 Vitest (node + jsdom projects) with coverage thresholds; Playwright + `@axe-core/playwright`
 - [x] 2.4 husky + lint-staged pre-commit; commitlint (Conventional Commits)
 - [x] 2.5 Scripts: `dev build preview typecheck lint format test test:coverage test:e2e test:a11y verify`
-- [x] 2.6 Serverless scaffold: `api/[[...route]].ts` (Hono) + `vercel.json` + `/healthz` smoke test
+- [x] 2.6 Serverless scaffold: `api/index.ts` (Hono) + `vercel.json` rewrite + live `/healthz` smoke test
 - [x] 2.7 Supabase: Drizzle schema + generated migrations (init + RLS), `.env.example`, seed script
 - [~] 2.8 **Await approval of the Stage 2 environment (verified end-to-end)**
+      — Code, tooling and live deployment are done and verified. The one open item is the
+        database choice below; it does **not** block Stage 3 tasks 3.1–3.6.
+
+### Supabase blocker
+
+The supplied Supabase token is read-only for project administration: `POST /v1/projects`
+returns **403 Forbidden**, `GET /v1/organizations` returns `[]`, and
+`GET /v1/organizations/{id}/members` returns 403. It can read the existing `my-portfolio`
+project (ref `yuiehpvsmqrjgjbdpqlb`, eu-west-1, healthy) but **cannot create a new project**.
+
+Options — needs a user decision:
+
+- [ ] **(a)** Reuse the existing `my-portfolio` project (add the game tables alongside its current tables)
+- [ ] **(b)** User creates a project in the Supabase dashboard and supplies `DATABASE_URL` (pooler, 6543) + `DIRECT_URL` (5432)
+- [ ] **(c)** Supply a Supabase token with project-creation scope, and the project is created automatically
+
+Until one is chosen, `/readyz` correctly reports `503 · database: not-configured`.
 
 ## Stage 3 — Core hardening & backend
 
@@ -113,6 +130,32 @@
 | `npx prettier --check .` | ✅ clean |
 | husky pre-commit (lint-staged) + commit-msg (commitlint) | ✅ installed and verified |
 | Generated migrations | ✅ `0000_init.sql`, `0001_rls.sql` |
+| `npx vitest run` (final, after API fixes) | ✅ **206 tests / 21 files passing** |
+
+### Live deployment
+
+- Vercel project **gridbox-intelligence** (`prj_wJ9rt8VB2uMlCkgde2cdZwOE4Upn`) · auto-deploys from `main`
+- **https://gridbox-intelligence.vercel.app**
+
+| Request | Result |
+|---|---|
+| `GET /` | ✅ 200 · 274,616 bytes · `<title>Gridbox Intelligence</title>` |
+| `GET /api/v1/healthz` | ✅ 200 · `{"status":"ok","environment":"production"}` |
+| `GET /api/v1/readyz` | ✅ 503 · `{"status":"degraded","database":"not-configured"}` — correct pending DB |
+| `GET /api/v1/nope` | ✅ 404 · structured error body with `requestId` |
+
+**Three deployment defects found and fixed** (all verified against the live deployment,
+not just locally):
+
+1. `api/[[...route]].ts` never matched — dynamic filename segments are a Next.js feature;
+   with `framework: "vite"` Vercel maps filenames to routes literally. → Single function
+   `api/index.ts` + `vercel.json` rewrite of `/api/v1/*`, with the `/api` prefix stripped
+   before Hono dispatch.
+2. Hono routes were declared as `/v1/*` but Vercel invokes with the full path
+   `/api/v1/*`. → `createApp({ basePath })`, mounted at `/api`.
+3. `ERR_MODULE_NOT_FOUND` for `/var/task/server/app` — `"type": "module"` makes Vercel emit
+   real ESM and trace by specifier, so extensionless relative imports were neither bundled
+   nor copied. → Explicit `.js` extensions across the server graph (`api`, `server`, `db`).
 
 **Note:** `eslint --max-warnings=0` is intentionally not yet the CI gate. The 12 outstanding warnings are
 the `react-hooks/immutability` findings quarantined to `src/app/App.tsx`, which are resolved by task 4.1.
