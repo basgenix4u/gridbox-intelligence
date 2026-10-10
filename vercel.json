@@ -5,8 +5,7 @@
   "outputDirectory": "dist",
   "installCommand": "npm ci",
   "functions": {
-    "api/[[...route]].ts": {
-      "memory": 512,
+    "api/[...route].ts": {
       "maxDuration": 10
     }
   },
