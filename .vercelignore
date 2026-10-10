@@ -1,0 +1,6 @@
+# Excluded from the Vercel build upload. Source that never ships.
+node_modules
+coverage
+docs
+scripts
+db/migrations/meta
