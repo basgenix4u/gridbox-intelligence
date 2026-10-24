@@ -219,11 +219,22 @@ policies in `0001_rls.sql` are load-bearing rather than decorative.
         (`DATABASE_URL` → Neon pooled, `AUTH_SECRET` 64-hex, `ALLOWED_ORIGINS` →
         `https://gridbox-intelligence.vercel.app`, `MODERATION_TOKEN` 48-hex), all typed
         `encrypted` and scoped to production/preview/development. Secrets were generated
-        in this workspace and never printed.
+        in this workspace and never printed. Redeployed: `/readyz` is **200 ready,
+        database up**, `/healthz` reports `configured: true`.
       — Stale Supabase comments corrected across `server/env.ts`, `db/client.ts`,
         `db/schema.ts`, `drizzle.config.ts`, `drizzleRepositories.ts`, `.env.example`,
         `README.md`, `PRD.md §2.4` and the board; `docs/PRODUCT-TEARDOWN.md` carries a
         dated revision note rather than a rewrite.
+      — **Two further defects found while smoke-testing the live API**, both fixed:
+        (1) `createApp` only built repositories from an *injected* `db`, and the Vercel
+        entry point injects nothing — so **no game route was mounted in production at
+        all** and every real request answered `404 No route for POST
+        /v1/auth/anonymous`. `/healthz` and `/readyz` sit outside that block, which is
+        why the readiness probe was green while the API served nothing. Repositories now
+        go through the same `db()` seam (injected → explicit null → built from
+        `DATABASE_URL`). Three regression tests cover all three shapes.
+        (2) `db()`'s `options.db !== undefined` precedence was correct but unused for
+        repositories — same fix, documented with the reasoning.
 
 ## Stage 4 — Frontend, integration, accessibility
 
