@@ -103,8 +103,14 @@ policies in `0001_rls.sql` are load-bearing rather than decorative.
 - [x] 3.5 Unit tests: engine rules, BFS distance fields, difficulty curves, combo/pulse logic, storage, `sanitizeName`
       — **verified complete 2026-10-24: 240 tests / 25 files passing.** ("shield" removed from this line — no
       shield exists in the game; it was a stale reference.)
-- [~] 3.6 Integration tests: deterministic headless run to game-over via seeded RNG (reuse the balance harness)
-- [ ] 3.7 API: `POST /auth/anonymous`, `GET|PATCH /me`, `POST /runs/start`, `POST /runs/:id/submit`,
+- [x] 3.6 Integration tests: deterministic headless run to game-over via seeded RNG
+      — `src/test/harness.ts` (the hardened, in-repo successor of the external balance harness: seeded game
+      factory, fixed-step driver, run fingerprint, `runToGameOver` with the engine's death-beat handling,
+      median/percentile), `src/test/bots.ts` (greedy skill-ceiling bot + random floor bot), and
+      `src/game/headlessRun.test.ts` (8 tests: seed-identical replay, per-seed divergence, game-over
+      termination with coherent stats, structural bounds, skill floor/ceiling gap, stable score-per-second
+      distribution for the anti-cheat baseline). `engine.test.ts` refactored onto the shared harness.
+- [~] 3.7 API: `POST /auth/anonymous`, `GET|PATCH /me`, `POST /runs/start`, `POST /runs/:id/submit`,
       `GET /leaderboard`, `GET /leaderboard/around`, `GET /daily`, `GET /healthz`, `GET /readyz`
 - [ ] 3.8 Anti-cheat: envelope validation, run attestation (nonce + hash chain), statistical flagging → `audit_log`
 - [ ] 3.9 **Moderation**: display-name profanity filter, report endpoint, moderation queue view

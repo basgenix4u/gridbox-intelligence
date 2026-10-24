@@ -1,9 +1,8 @@
 import { beforeAll, describe, expect, it } from "vitest";
-import { createRng } from "@/core/adapters/seededRng";
-import { createSilentAudio } from "@/core/adapters/silentAudio";
 import { installDomStubs } from "@/test/domStubs";
+import { makeGame, runTicks, signature, step } from "@/test/harness";
 import { CHIPS_ON_BOARD, COLS, PULSE_COST, ROWS, START_LIVES } from "./constants";
-import { Game } from "./engine";
+import type { Game } from "./engine";
 
 /**
  * Integration coverage for the real engine, running headless.
@@ -11,57 +10,12 @@ import { Game } from "./engine";
  * Because every stochastic decision now flows through an injected `Rng`, a run
  * is fully reproducible from its seed. That is what makes these assertions
  * possible at all — and it is the same property the daily challenge and
- * server-side replay verification depend on.
+ * server-side replay verification depend on. The harness helpers (seeded game
+ * factory, fixed-step driver, run fingerprint) live in `@/test/harness`.
  */
 beforeAll(() => {
   installDomStubs();
 });
-
-function makeGame(seed: number): Game {
-  const game = new Game(createSilentAudio(), createRng(seed));
-  game.resize(360, 640, 1);
-  game.haptics = false;
-  return game;
-}
-
-/** Advances the simulation by fixed 60fps steps. */
-function step(game: Game, ms: number): void {
-  const DT = 1000 / 60;
-  for (let t = 0; t < ms; t += DT) game.update(DT);
-}
-
-/** Advances `ticks` fixed 60fps steps, applying `policy` before each update. */
-function runTicks(game: Game, policy: (g: Game, tick: number) => void, ticks: number): void {
-  const DT = 1000 / 60;
-  for (let t = 0; t < ticks; t++) {
-    policy(game, t);
-    game.update(DT);
-  }
-}
-
-/**
- * A cheap fingerprint of everything a run is made of. Comparing signatures is
- * stronger than comparing scores alone: it also catches desync in movement,
- * spawning and the level curve.
- */
-function signature(game: Game): string {
-  return JSON.stringify({
-    score: game.score,
-    chips: game.chipsCollected,
-    level: game.level,
-    lives: game.lives,
-    kills: game.kills,
-    combo: game.combo,
-    maxCombo: game.maxCombo,
-    charge: game.charge,
-    px: game.player.gx,
-    py: game.player.gy,
-    enemies: game.enemies.map((e) => [e.kind, e.gx, e.gy]),
-    spawners: game.spawners.map((s) => [s.kind, s.gx, s.gy]),
-    chipPos: game.chips.map((c) => [c.gx, c.gy]),
-    walls: Array.from(game.walls),
-  });
-}
 
 describe("Game construction", () => {
   it("starts in attract mode with a full board of chips", () => {
