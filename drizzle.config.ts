@@ -1,14 +1,13 @@
 import { defineConfig } from "drizzle-kit";
 
 /**
- * `DATABASE_URL` points at Supabase's transaction pooler (port 6543).
+ * `DATABASE_URL` points at Neon's connection pooler.
  *
- * This project's direct endpoint (`db.<ref>.supabase.co`) publishes an AAAA
- * record only — IPv6 is Supabase's default and IPv4 direct access is a paid
- * add-on. Vercel's Lambdas egress over IPv4, so the pooler is the only route
- * that actually works from production. `DIRECT_URL` is therefore optional and
- * only used when running migrations from a network that can reach IPv6;
- * otherwise migrations run through the pooler as well.
+ * The pooler is what the runtime uses: Vercel's functions are short-lived and
+ * numerous, so a pooler in front of the compute is what keeps the connection
+ * count sane. `DIRECT_URL` is the non-pooled endpoint and is preferred for
+ * migrations, because DDL inside a transaction-mode pooler is at best awkward
+ * and at worst silently split across backend connections.
  */
 export default defineConfig({
   schema: "./db/schema.ts",

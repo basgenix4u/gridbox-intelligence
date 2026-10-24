@@ -8,8 +8,8 @@ export type Database = PostgresJsDatabase<typeof schema>;
  * Serverless-safe connection singleton.
  *
  * Vercel reuses the module scope across warm invocations, so caching the pool
- * avoids exhausting Supabase's connection limit. `max: 1` is deliberate: each
- * lambda needs one connection, and Supabase's pooler does the multiplexing.
+ * avoids reconnecting on every request. `max: 1` is deliberate: each function
+ * instance needs one connection, and Neon's pooler does the multiplexing.
  */
 let cached: { db: Database; url: string } | null = null;
 
@@ -20,7 +20,7 @@ export function createDatabase(connectionString: string): Database {
     max: 1,
     idle_timeout: 20,
     connect_timeout: 10,
-    // Supabase's transaction pooler does not support prepared statements.
+    // Neon's transaction pooler does not support prepared statements.
     prepare: false,
     ssl: connectionString.includes("localhost") ? undefined : "require",
   });

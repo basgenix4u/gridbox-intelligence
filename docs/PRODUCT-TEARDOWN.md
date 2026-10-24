@@ -4,6 +4,15 @@
 > Prepared by: Principal PM · Lead Architect · Senior Full-Stack Eng · DevOps/SRE · UI/UX Designer · UI/UX Engineer · QA Automation
 > Date: 2026-10-10 · Repo: [github.com/basgenix4u/gridbox-intelligence](https://github.com/basgenix4u/gridbox-intelligence)
 
+> **Revision 2026-10-24 — hosting change.** Q4 originally read "Vercel +
+> Supabase". Production moved to **Vercel + Neon**: the game now runs in its own
+> Neon project (`gridbox-intelligence`, `old-sun-52286414`, eu-west-2, PostgreSQL
+> 17) instead of a shared Supabase project. The dedicated `gridbox` schema, the
+> least-privilege `gridbox_app` role and the RLS design described below are
+> unchanged; only the host changed. Sections §8 and §9 below are left as written
+> for history — where they say "Supabase", read "Neon". `PRD.md` §2.4 and
+> `.env.example` carry the current values.
+
 ---
 
 ## 0. Decisions resolved (supersedes §5 and §8 of `ARCHITECTURE-REVIEW.md`)

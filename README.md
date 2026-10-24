@@ -133,9 +133,10 @@ entirely in the browser until the server features ship (see the PRD).
 - **API:** `api/index.ts` is a single Vercel Serverless Function; `vercel.json`
   rewrites `/api/v1/*` onto it, and the function strips the `/api` prefix before
   dispatching to Hono. `/api/v1/healthz` and `/api/v1/readyz` are live.
-- **Database:** a dedicated `gridbox` schema in the Supabase project, applied with
-  Drizzle migrations, with row-level security enforced by a least-privilege
-  `gridbox_app` role.
+- **Database:** a dedicated `gridbox` schema on Neon, applied with Drizzle
+  migrations, with row-level security enforced by a least-privilege
+  `gridbox_app` role. The runtime uses Neon's pooled endpoint; migrations use the
+  direct one.
 
 ---
 

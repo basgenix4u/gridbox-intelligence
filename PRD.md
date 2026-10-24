@@ -85,9 +85,11 @@ matching `x-request-id` header. The 404 for an unknown route is handled centrall
 
 ### 2.4 The database
 
-A dedicated `gridbox` schema in the Supabase project `my-portfolio`
-(`yuiehpvsmqrjgjbdpqlb`, eu-west-1) — deliberately separate from the portfolio's
-own `public` schema so no table, row or grant of the portfolio is touched.
+A dedicated `gridbox` schema in a dedicated Neon project (`gridbox-intelligence`,
+`old-sun-52286414`, eu-west-2, PostgreSQL 17) — separate from any other
+application's data. The game connects as `gridbox_app`, a plain `NOBYPASSRLS`
+login role, and the row-level-security policies in `0001_rls.sql` are what grant
+it access; the owner role is used only for the one-time bootstrap.
 
 | Table | Purpose |
 |---|---|
@@ -130,11 +132,11 @@ routing, error shape and health endpoints.
 |---|---|
 | Deliverable | The game — Gridbox Intelligence |
 | Architecture | Option B: full-stack, with a leaderboard |
-| Deploy | Vercel (client + API) and Supabase (PostgreSQL) |
+| Deploy | Vercel (client + API) and Neon (PostgreSQL) |
 | Release scope | One release containing P0 + P1 |
 | Rebalance | Approved. Combo tapering and kill-value rebalance. **Existing local scores are preserved and tagged as legacy scoring, not deleted** |
 | Display names | Both — a long name on the profile, 3-character initials in compact leaderboard rows. This requires profanity filtering, a moderation queue and a report flow |
-| Database | Reuses the `my-portfolio` Supabase project, isolated in a dedicated `gridbox` schema. The portfolio's tables, data and credentials are untouched |
+| Database | A dedicated Neon project (`gridbox-intelligence`), isolated in a `gridbox` schema and reached through a least-privilege `gridbox_app` role. No other application's data is touched |
 | Leaderboard shape | **Both.** A daily board from `leaderboard_daily` and a global best-run-per-player board from `runs`. The schema already supports both — no second migration |
 | Display-name policy | Names are filtered at write time by a normalised wordlist (leet/unicode-folded, 2–16 characters). Reported names are held in `name_reports` and do not reach a board until cleared. The queue is cleared by the owner through a token-protected admin endpoint (`MODERATION_TOKEN`) — not by players |
 | Anti-cheat | **Two-tier.** A run above the 99th percentile of the balance-harness distribution plus a 20% margin is flagged `suspect` (kept, hidden from boards); only a physically impossible run — a score above the theoretical maximum for its duration — is `rejected`. No silent acceptance of implausible runs, no false bans |

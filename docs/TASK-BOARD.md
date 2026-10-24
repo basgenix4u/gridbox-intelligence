@@ -11,11 +11,11 @@
 | PRD | **Present.** `PRD.md` is the single source of truth (added 2026-10-18); this board tracks execution against it |
 | Deliverable | **Gridbox Intelligence (the game)** |
 | Architecture | **Option B** — full-stack leaderboard |
-| Deploy | **Vercel + Supabase** · API = **Hono** on Vercel Serverless Functions |
+| Deploy | **Vercel + Neon** · API = **Hono** on Vercel Serverless Functions |
 | Release scope | **One release containing P0 + P1** (no separate v1.1.0) |
 | Rebalance | **Approved.** Combo tapering + kill-value rebalance. Existing local scores are **preserved and tagged** as legacy scoring, not deleted |
 | Names | **Both** — long display name on the profile, 3-char initials in compact leaderboard rows → requires profanity filtering, moderation queue and report flow |
-| Supabase | **Reusing the user's existing `my-portfolio` project**, isolated in a dedicated `gridbox` schema. The portfolio's own tables, data and credentials are untouched |
+| Database (2026-10-24) | **Dedicated Neon project** `gridbox-intelligence` (`old-sun-52286414`, eu-west-2, PostgreSQL 17), isolated in a `gridbox` schema. Reached as the least-privilege `gridbox_app` role over Neon's pooled endpoint; migrations use the direct endpoint. Supersedes the earlier shared-`my-portfolio`-Supabase decision |
 | Leaderboard shape (2026-10-24) | **Both** — daily board from `leaderboard_daily` + global best-run-per-player from `runs`. Schema already supports both; no new migration |
 | Name policy (2026-10-24) | **Filter + report + admin clear.** Normalized wordlist filter (leet/unicode-folded, 2–16 chars) at write time; `POST /names/:id/report` feeds `name_reports`; owner clears the queue via a token-protected admin endpoint (`MODERATION_TOKEN`). Satisfies acceptance criterion 5 |
 | Anti-cheat (2026-10-24) | **Two-tier.** Above harness p99 + 20% margin → `validity='suspect'` (hidden from boards, kept for analysis); only physically impossible runs (score above the theoretical maximum for their duration) → `validity='rejected'` |
@@ -197,6 +197,33 @@ policies in `0001_rls.sql` are load-bearing rather than decorative.
         Migrations `0002` (leaderboard composite PK) and `0003` (legacy_scores) are
         generated and proven against PGlite but **not yet applied to the live
         database** — both are needed before the new endpoints can work there.
+
+- [x] 3.15 **Production settled** (user-directed: fix production before any frontend work)
+      — **Database moved to a dedicated Neon project** `gridbox-intelligence`
+        (`old-sun-52286414`, eu-west-2, PostgreSQL 17, org `Alims`). The game had been
+        sharing the `my-portfolio` Supabase project; it now has its own, reached as the
+        least-privilege `gridbox_app` role over Neon's **pooled** endpoint. One-time
+        bootstrap rewritten for Neon (`db/bootstrap.sql`): schema, `NOBYPASSRLS` role,
+        scoped grants, `search_path`, and default privileges.
+      — **All four migrations applied to the live database** (`0000`–`0003`): 4 rows in
+        `gridbox.__drizzle_migrations`, `legacy_scores` present with its
+        `(player_id, client_id)` unique constraint, `leaderboard_daily` carrying the
+        composite primary key. `0001_rls.sql` was made portable first: its
+        `service_role` / `anon` / `authenticated` policies are Supabase-only roles, so
+        they are now created inside `DO` blocks that skip when the role is absent. The
+        application-role policies — the load-bearing ones — are unchanged.
+      — **`npm run db:migrate` prefers `DIRECT_URL`** over `DATABASE_URL` (DDL through a
+        transaction-mode pooler is at best awkward, at worst silently split), falling
+        back to `DATABASE_URL` as before.
+      — **All four missing Vercel env vars set** on `gridbox-intelligence`
+        (`DATABASE_URL` → Neon pooled, `AUTH_SECRET` 64-hex, `ALLOWED_ORIGINS` →
+        `https://gridbox-intelligence.vercel.app`, `MODERATION_TOKEN` 48-hex), all typed
+        `encrypted` and scoped to production/preview/development. Secrets were generated
+        in this workspace and never printed.
+      — Stale Supabase comments corrected across `server/env.ts`, `db/client.ts`,
+        `db/schema.ts`, `drizzle.config.ts`, `drizzleRepositories.ts`, `.env.example`,
+        `README.md`, `PRD.md §2.4` and the board; `docs/PRODUCT-TEARDOWN.md` carries a
+        dated revision note rather than a rewrite.
 
 ## Stage 4 — Frontend, integration, accessibility
 

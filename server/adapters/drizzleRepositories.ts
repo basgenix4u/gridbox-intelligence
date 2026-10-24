@@ -33,7 +33,7 @@ import type { RunMode, RunValidity } from "../../src/shared/contracts.js";
  */
 
 /**
- * Both drivers the adapters run against: the production Supabase pooler
+ * Both drivers the adapters run against: the production Neon pooler
  * (postgres-js) and PGlite in the integration tests. The SQL is identical;
  * only the query-result wrapper differs, which `rowsOf` normalises.
  */

@@ -24,9 +24,9 @@ import {
  * tables, data and credentials are never touched.
  *
  * Row Level Security is enabled as defence in depth. Note that the API connects
- * as `gridbox_app`, a plain `NOBYPASSRLS` role rather than Supabase's
- * `service_role`, so the policies in `0001_rls.sql` are what actually grant the
- * application its access — they are load-bearing, not decorative.
+ * as `gridbox_app`, a plain `NOBYPASSRLS` role rather than a superuser, so the
+ * policies in `0001_rls.sql` are what actually grant the application its
+ * access — they are load-bearing, not decorative.
  */
 export const gridbox = pgSchema("gridbox");
 

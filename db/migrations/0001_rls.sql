@@ -1,13 +1,14 @@
 -- Row Level Security — defence in depth.
 --
--- The API connects as `gridbox_app`, a plain NOBYPASSRLS login role, not
--- Supabase's `service_role`. That means these policies are load-bearing:
--- without them the application has no access at all.
+-- The API connects as `gridbox_app`, a plain NOBYPASSRLS login role, not a
+-- superuser or a platform service role. That means these policies are
+-- load-bearing: without them the application has no access at all.
 --
--- Policies are also declared for `service_role` and for public read, so the
--- rules stay correct if the connection strategy ever changes. Note that the
--- `gridbox` schema is deliberately NOT exposed over PostgREST, so `anon` and
--- `authenticated` cannot reach it regardless.
+-- The `service_role`, `anon` and `authenticated` policies below only exist on
+-- hosted Supabase projects, which pre-create those roles. The statements are
+-- therefore guarded: on a plain Postgres (Neon included) they are skipped
+-- instead of aborting the migration. The application role's policies, which
+-- are the ones that actually gate the game, are created unconditionally.
 
 ALTER TABLE "gridbox"."players"           ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "gridbox"."runs"              ENABLE ROW LEVEL SECURITY;
@@ -23,17 +24,34 @@ CREATE POLICY "app_all_audit_log"         ON "gridbox"."audit_log"         FOR A
 CREATE POLICY "app_all_leaderboard_daily" ON "gridbox"."leaderboard_daily" FOR ALL TO gridbox_app USING (true) WITH CHECK (true);
 
 -- Service role keeps full access, in case the connection strategy changes.
-CREATE POLICY "service_role_all_players"           ON "gridbox"."players"           FOR ALL TO service_role USING (true) WITH CHECK (true);
-CREATE POLICY "service_role_all_runs"              ON "gridbox"."runs"              FOR ALL TO service_role USING (true) WITH CHECK (true);
-CREATE POLICY "service_role_all_name_reports"      ON "gridbox"."name_reports"      FOR ALL TO service_role USING (true) WITH CHECK (true);
-CREATE POLICY "service_role_all_audit_log"         ON "gridbox"."audit_log"         FOR ALL TO service_role USING (true) WITH CHECK (true);
-CREATE POLICY "service_role_all_leaderboard_daily" ON "gridbox"."leaderboard_daily" FOR ALL TO service_role USING (true) WITH CHECK (true);
+-- Guarded: the role only exists on Supabase.
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'service_role') THEN
+    CREATE POLICY "service_role_all_players"           ON "gridbox"."players"           FOR ALL TO service_role USING (true) WITH CHECK (true);
+    CREATE POLICY "service_role_all_runs"              ON "gridbox"."runs"              FOR ALL TO service_role USING (true) WITH CHECK (true);
+    CREATE POLICY "service_role_all_name_reports"      ON "gridbox"."name_reports"      FOR ALL TO service_role USING (true) WITH CHECK (true);
+    CREATE POLICY "service_role_all_audit_log"         ON "gridbox"."audit_log"         FOR ALL TO service_role USING (true) WITH CHECK (true);
+    CREATE POLICY "service_role_all_leaderboard_daily" ON "gridbox"."leaderboard_daily" FOR ALL TO service_role USING (true) WITH CHECK (true);
+  END IF;
+END
+$$;
 
--- Public read of leaderboard data only: initials and score, never tokens or hashes.
-CREATE POLICY "public_read_valid_runs"   ON "gridbox"."runs" FOR SELECT TO anon, authenticated
-  USING (validity = 'ok');
-CREATE POLICY "public_read_daily_board"  ON "gridbox"."leaderboard_daily" FOR SELECT TO anon, authenticated
-  USING (true);
+-- Public read of leaderboard data only: initials and score, never tokens or
+-- hashes. Guarded for the same reason: `anon` and `authenticated` are
+-- Supabase roles. On a plain Postgres nothing outside the application role can
+-- reach the schema at all, which is the stricter outcome anyway.
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'anon')
+     AND EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'authenticated') THEN
+    CREATE POLICY "public_read_valid_runs"   ON "gridbox"."runs" FOR SELECT TO anon, authenticated
+      USING (validity = 'ok');
+    CREATE POLICY "public_read_daily_board"  ON "gridbox"."leaderboard_daily" FOR SELECT TO anon, authenticated
+      USING (true);
+  END IF;
+END
+$$;
 
 -- Deny everything else by omission: no INSERT/UPDATE/DELETE policies exist for
 -- anon or authenticated, so those operations fail closed.

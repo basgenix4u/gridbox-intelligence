@@ -10,9 +10,9 @@ import { z } from "zod";
 export const EnvSchema = z
   .object({
     NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
-    /** Supabase transaction pooler (port 6543). Optional so health checks work with no DB. */
+    /** Neon connection pooler endpoint. Optional so health checks work with no DB. */
     DATABASE_URL: z.string().url().optional(),
-    /** Direct connection (port 5432). Used by migrations only. */
+    /** Direct (non-pooled) connection. Used by migrations only. */
     DIRECT_URL: z.string().url().optional(),
     /** HS256 signing key for anonymous session tokens. */
     AUTH_SECRET: z.string().min(32).optional(),
