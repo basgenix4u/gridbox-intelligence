@@ -1,12 +1,13 @@
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, asc, desc, eq, sql } from "drizzle-orm";
 import type { PgDatabase } from "drizzle-orm/pg-core";
 import type * as schema from "../../db/schema.js";
 import type { PostgresJsQueryResultHKT } from "drizzle-orm/postgres-js/session";
 import type { PgliteQueryResultHKT } from "drizzle-orm/pglite/session";
-import { auditLog, leaderboardDaily, nameReports, players, runs } from "../../db/schema.js";
+import { auditLog, leaderboardDaily, legacyScores, nameReports, players, runs } from "../../db/schema.js";
 import type {
   AuditRepository,
   DailyBoardEntry,
+  LegacyScoreRepository,
   LeaderboardEntry,
   NameReportRecord,
   NewRun,
@@ -117,11 +118,11 @@ const playerRepo = (db: SupportedDatabase): PlayerRepository => ({
     if (!rows[0]) throw new Error(`player ${id} not found`);
     return toPlayerRecord(rows[0]);
   },
-  async addRunTotals(id, score) {
+  async addRunTotals(id, score, runs = 1) {
     const rows = await db
       .update(players)
       .set({
-        totalRuns: sql`${players.totalRuns} + 1`,
+        totalRuns: sql`${players.totalRuns} + ${runs}`,
         bestScore: sql`greatest(${players.bestScore}, ${score})`,
       })
       .where(eq(players.id, id))
@@ -366,6 +367,66 @@ const auditRepo = (db: SupportedDatabase): AuditRepository => ({
   },
 });
 
+const legacyScoreRepo = (db: SupportedDatabase): LegacyScoreRepository => ({
+  async insertMany(playerId, entries) {
+    if (entries.length === 0) return { inserted: 0 };
+    // ON CONFLICT DO NOTHING is the idempotence: the unique (player, client_id)
+    // index makes a retried upload a no-op, and the returned row count is
+    // exactly how many entries were new.
+    const inserted = await db
+      .insert(legacyScores)
+      .values(
+        entries.map((e) => ({
+          playerId,
+          clientId: e.clientId,
+          score: e.score,
+          level: e.level,
+          chips: e.chips,
+          maxCombo: e.maxCombo,
+          playedAt: e.playedAt,
+          scoringVersion: e.scoringVersion,
+        })),
+      )
+      .onConflictDoNothing({ target: [legacyScores.playerId, legacyScores.clientId] })
+      .returning({ id: legacyScores.id });
+    return { inserted: inserted.length };
+  },
+  async list(playerId, limit) {
+    const rows = await db
+      .select()
+      .from(legacyScores)
+      .where(eq(legacyScores.playerId, playerId))
+      .orderBy(desc(legacyScores.score), asc(legacyScores.playedAt))
+      .limit(limit);
+    return rows.map((r) => ({
+      id: r.id,
+      playerId: r.playerId,
+      clientId: r.clientId,
+      score: r.score,
+      level: r.level,
+      chips: r.chips,
+      maxCombo: r.maxCombo,
+      playedAt: Number(r.playedAt),
+      scoringVersion: r.scoringVersion,
+      migratedAt: r.migratedAt,
+    }));
+  },
+  async hasAny(playerId) {
+    const rows = await db
+      .select({ id: legacyScores.id })
+      .from(legacyScores)
+      .where(eq(legacyScores.playerId, playerId))
+      .limit(1);
+    return rows.length > 0;
+  },
+});
+
 export function createDrizzleRepositories(db: SupportedDatabase): Repositories {
-  return { players: playerRepo(db), runs: runRepo(db), reports: reportRepo(db), audit: auditRepo(db) };
+  return {
+    players: playerRepo(db),
+    runs: runRepo(db),
+    reports: reportRepo(db),
+    audit: auditRepo(db),
+    legacyScores: legacyScoreRepo(db),
+  };
 }

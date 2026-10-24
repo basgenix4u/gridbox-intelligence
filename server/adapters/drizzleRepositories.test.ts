@@ -291,6 +291,73 @@ describe("reports", () => {
   });
 });
 
+describe("legacyScores", () => {
+  const entry = (clientId: string, score: number, scoringVersion = 1) => ({
+    clientId,
+    score,
+    level: 1 + Math.floor(score / 700),
+    chips: Math.floor(score / 80),
+    maxCombo: 8,
+    playedAt: 1_700_000_000_000 + score,
+    scoringVersion,
+  });
+
+  it("stores a batch and reports how many were new", async () => {
+    await player(P1, "AAA");
+    const first = await repos.legacyScores.insertMany(P1, [entry("a", 5_000), entry("b", 9_000)]);
+    expect(first).toEqual({ inserted: 2 });
+    const history = await repos.legacyScores.list(P1, 10);
+    expect(history.map((e) => e.score)).toEqual([9_000, 5_000]);
+  });
+
+  it("inserts nothing on a retry — the idempotence the migration depends on", async () => {
+    await player(P1, "AAA");
+    await repos.legacyScores.insertMany(P1, [entry("a", 5_000), entry("b", 9_000)]);
+    const retry = await repos.legacyScores.insertMany(P1, [entry("a", 5_000), entry("b", 9_000)]);
+    expect(retry).toEqual({ inserted: 0 });
+    expect(await repos.legacyScores.list(P1, 10)).toHaveLength(2);
+  });
+
+  it("inserts only the new entries of a partially-retried batch", async () => {
+    await player(P1, "AAA");
+    await repos.legacyScores.insertMany(P1, [entry("a", 5_000)]);
+    const partial = await repos.legacyScores.insertMany(P1, [entry("a", 5_000), entry("b", 7_000)]);
+    expect(partial).toEqual({ inserted: 1 });
+    expect((await repos.legacyScores.list(P1, 10)).map((e) => e.score)).toEqual([7_000, 5_000]);
+  });
+
+  it("keeps players' histories separate", async () => {
+    await player(P1, "AAA");
+    await player(P2, "BBB");
+    await repos.legacyScores.insertMany(P1, [entry("a", 5_000)]);
+    await repos.legacyScores.insertMany(P2, [entry("a", 5_000)]); // same client id, other player
+    expect(await repos.legacyScores.list(P1, 10)).toHaveLength(1);
+    expect(await repos.legacyScores.list(P2, 10)).toHaveLength(1);
+  });
+
+  it("reports whether a player has migrated", async () => {
+    await player(P1, "AAA");
+    expect(await repos.legacyScores.hasAny(P1)).toBe(false);
+    await repos.legacyScores.insertMany(P1, [entry("a", 1)]);
+    expect(await repos.legacyScores.hasAny(P1)).toBe(true);
+  });
+
+  it("drops a player's history with the player (FK cascade)", async () => {
+    await player(P1, "AAA");
+    await repos.legacyScores.insertMany(P1, [entry("a", 5_000)]);
+    await test.db.delete(playersTable).where(eq(playersTable.id, P1));
+    expect(await repos.legacyScores.hasAny(P1)).toBe(false);
+  });
+
+  it("stores the scoring version the browser supplied", async () => {
+    await player(P1, "AAA");
+    await repos.legacyScores.insertMany(P1, [entry("a", 5_000, 2), entry("b", 1, 1)]);
+    const history = await repos.legacyScores.list(P1, 10);
+    expect(history.find((e) => e.clientId === "a")?.scoringVersion).toBe(2);
+    expect(history.find((e) => e.clientId === "b")?.scoringVersion).toBe(1);
+  });
+});
+
 describe("audit", () => {
   it("records entries and lists them newest first", async () => {
     await repos.audit.log({ actor: P1, action: "run.flagged", meta: { score: 1 } });

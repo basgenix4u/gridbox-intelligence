@@ -195,6 +195,11 @@ that the two never drift.
 - API integration tests against a test database, with shared contract types
 - Legacy-score migration: tag existing local entries `scoringVersion: 1`, new
   entries `2`
+- **Local-score migration (added 2026-10-24):** one-time, idempotent upload of a
+  returning player's legacy local history when they set their username, folded
+  into their profile totals (`bestScore`, `totalRuns`). Legacy scores carry no
+  attestation, so they are history on the profile and never appear on the
+  competitive boards
 
 ### 5.3 Frontend and integration
 

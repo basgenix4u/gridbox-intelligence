@@ -22,6 +22,13 @@
       "when": 1792804024342,
       "tag": "0002_graceful_firestar",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1792807220686,
+      "tag": "0003_lumpy_the_hunter",
+      "breakpoints": true
     }
   ]
 }

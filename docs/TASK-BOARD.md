@@ -170,12 +170,17 @@ policies in `0001_rls.sql` are load-bearing rather than decorative.
       real driver bugs on day one — `db.execute()`'s result shape differs per
       driver, and the 23505 replay guard missed the SQLSTATE when the driver
       wraps the error — both fixed in the adapter.
-- [~] 3.12 Legacy-score migration: tag existing local entries `scoringVersion: 1`, new entries `2`
+- [x] 3.12 Legacy-score migration: tag existing local entries `scoringVersion: 1`, new entries `2`
+      — commit `1152633`. The version fields existed but the upgrade was not
+      durable: `loadScores` now detects a pre-versioning table and writes the
+      tagged list back once (idempotent — the second load finds nothing to
+      change), and `ScoreTable` labels a legacy-formula row with a small `v1`
+      badge rather than hiding it. 5 new tests.
 - [ ] 3.13 **Local-score migration (2026-10-24)**: one-time idempotent upload of a returning player's legacy
       local history when they set their username — batch endpoint, client-supplied ids for dedupe, entries
       tagged `scoringVersion: 1` + `migrated`, folded into profile totals (`totalRuns`, `bestScore`), local
       storage flag prevents re-upload; failures retry without duplicating
-- [ ] 3.14 Bug-fix pass; all tests green; **await approval**
+- [~] 3.14 Bug-fix pass; all tests green; **await approval**
 
 ## Stage 4 — Frontend, integration, accessibility
 

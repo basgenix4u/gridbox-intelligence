@@ -239,6 +239,49 @@ describe("the API against a real database", () => {
     expect(board.rows.map((r) => r.initials)).toEqual(["BAD", "SNI"]);
   }, 30_000);
 
+  it("migrates a returning player's local history exactly once", async () => {
+    const { token } = await signIn("Returning");
+    const batch = (ids: string[]) =>
+      JSON.stringify({
+        entries: ids.map((id, i) => ({
+          id,
+          score: 1_000 + i * 500,
+          level: 2 + i,
+          chips: 12 + i,
+          maxCombo: 4,
+          date: 1_700_000_000_000 + i,
+        })),
+      });
+
+    const first = await app.request("/v1/me/migrate-scores", {
+      method: "POST",
+      headers: auth(token),
+      body: batch(["local-1", "local-2"]),
+    });
+    expect(await first.json()).toEqual({ migrated: 2, duplicates: 0, bestScore: 1_500, totalRuns: 2 });
+
+    // A flaky connection retries the same batch: nothing is stored twice and
+    // the totals do not move.
+    const retry = await app.request("/v1/me/migrate-scores", {
+      method: "POST",
+      headers: auth(token),
+      body: batch(["local-1", "local-2"]),
+    });
+    expect(await retry.json()).toEqual({ migrated: 0, duplicates: 2, bestScore: 1_500, totalRuns: 2 });
+
+    // The migration status endpoint is the client's one-shot guard.
+    expect(await (await app.request("/v1/me/migration-status", { headers: auth(token) })).json()).toEqual({
+      migrated: true,
+    });
+
+    // The migrated history never reaches the competitive board — only the
+    // profile reflects it.
+    const board = (await (await app.request("/v1/leaderboard")).json()) as { rows: unknown[] };
+    expect(board.rows).toHaveLength(0);
+    const me = (await (await app.request("/v1/me", { headers: auth(token) })).json()) as { totalRuns: number };
+    expect(me.totalRuns).toBe(2);
+  }, 30_000);
+
   it("writes flagged and rejected runs to the audit trail", async () => {
     const { token } = await signIn("Cheater");
     const start = (await (

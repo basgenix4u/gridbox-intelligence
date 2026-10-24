@@ -18,6 +18,7 @@ import type { PlayerServiceDeps } from "./services/players.js";
 import type { RunServiceDeps } from "./services/runs.js";
 import type { LeaderboardServiceDeps } from "./services/leaderboard.js";
 import type { ModerationServiceDeps } from "./services/moderation.js";
+import type { MigrationServiceDeps } from "./services/legacyMigration.js";
 import { HARNESS_SCORE_PER_SECOND_P99 } from "./services/anticheat.js";
 
 export interface AppOptions {
@@ -143,6 +144,7 @@ export function createApp(options: AppOptions = {}): Hono<AppBindings> {
     };
     const leaderboardService: LeaderboardServiceDeps = { repos: repositories, now };
     const moderationService: ModerationServiceDeps = { repos: repositories };
+    const migrationService: MigrationServiceDeps = { repos: repositories };
     const loadPlayerByTokenHash = (hash: string): Promise<PlayerRecord | null> =>
       repositories.players.findByTokenHash(hash);
 
@@ -162,7 +164,7 @@ export function createApp(options: AppOptions = {}): Hono<AppBindings> {
     api.route("/v1/auth", authRoutes({ playerService, limiter, loadPlayerByTokenHash }));
 
     api.use("/v1/me/*", session);
-    api.route("/v1/me", meRoutes({ playerService }));
+    api.route("/v1/me", meRoutes({ playerService, migrationService, limiter }));
 
     api.use("/v1/runs/*", session);
     api.route("/v1/runs", runRoutes({ runService, limiter }));

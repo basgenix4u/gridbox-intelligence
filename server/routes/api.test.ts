@@ -612,6 +612,150 @@ describe("CORS allowlist", () => {
   });
 });
 
+describe("legacy-score migration", () => {
+  function batch(entries: { id: string; score: number }[]): string {
+    return JSON.stringify({
+      entries: entries.map((e) => ({
+        id: e.id,
+        score: e.score,
+        level: 1 + Math.floor(e.score / 700),
+        chips: Math.floor(e.score / 80),
+        maxCombo: 8,
+        date: 1_700_000_000_000,
+      })),
+    });
+  }
+
+  it("uploads a returning player's local history and folds it into the profile", async () => {
+    const app = makeApp();
+    const { token } = await auth(app);
+    const res = await app.request("/v1/me/migrate-scores", {
+      method: "POST",
+      headers: bearer(token),
+      body: batch([
+        { id: "local-1", score: 5_000 },
+        { id: "local-2", score: 9_000 },
+      ]),
+    });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ migrated: 2, duplicates: 0, bestScore: 9_000, totalRuns: 2 });
+
+    const me = (await (await app.request("/v1/me", { headers: bearer(token) })).json()) as {
+      bestScore: number;
+      totalRuns: number;
+    };
+    expect(me).toMatchObject({ bestScore: 9_000, totalRuns: 2 });
+  });
+
+  it("is idempotent — a retry reports duplicates and changes nothing", async () => {
+    const app = makeApp();
+    const { token } = await auth(app);
+    const body = batch([{ id: "local-1", score: 5_000 }]);
+    await app.request("/v1/me/migrate-scores", { method: "POST", headers: bearer(token), body });
+    const retry = await app.request("/v1/me/migrate-scores", { method: "POST", headers: bearer(token), body });
+    expect(await retry.json()).toEqual({ migrated: 0, duplicates: 1, bestScore: 5_000, totalRuns: 1 });
+
+    const me = (await (await app.request("/v1/me", { headers: bearer(token) })).json()) as { totalRuns: number };
+    expect(me.totalRuns).toBe(1);
+  });
+
+  it("keeps a partially-retried batch from double-counting", async () => {
+    const app = makeApp();
+    const { token } = await auth(app);
+    await app.request("/v1/me/migrate-scores", {
+      method: "POST",
+      headers: bearer(token),
+      body: batch([{ id: "local-1", score: 5_000 }]),
+    });
+    const partial = await app.request("/v1/me/migrate-scores", {
+      method: "POST",
+      headers: bearer(token),
+      body: batch([
+        { id: "local-1", score: 5_000 },
+        { id: "local-2", score: 7_000 },
+      ]),
+    });
+    expect(await partial.json()).toEqual({ migrated: 1, duplicates: 1, bestScore: 7_000, totalRuns: 2 });
+  });
+
+  it("never lets migrated history onto the competitive board", async () => {
+    const app = makeApp();
+    const { token } = await auth(app);
+    await app.request("/v1/me/migrate-scores", {
+      method: "POST",
+      headers: bearer(token),
+      body: batch([{ id: "local-1", score: 999_999 }]),
+    });
+    // The profile reflects it; the board — which only carries attested runs —
+    // does not.
+    const board = (await (await app.request("/v1/leaderboard")).json()) as { rows: unknown[] };
+    expect(board.rows).toHaveLength(0);
+  });
+
+  it("reports the migration status", async () => {
+    const app = makeApp();
+    const { token } = await auth(app);
+    expect(await (await app.request("/v1/me/migration-status", { headers: bearer(token) })).json()).toEqual({
+      migrated: false,
+    });
+    await app.request("/v1/me/migrate-scores", {
+      method: "POST",
+      headers: bearer(token),
+      body: batch([{ id: "local-1", score: 100 }]),
+    });
+    expect(await (await app.request("/v1/me/migration-status", { headers: bearer(token) })).json()).toEqual({
+      migrated: true,
+    });
+  });
+
+  it("requires a session", async () => {
+    const app = makeApp();
+    const res = await app.request("/v1/me/migrate-scores", { method: "POST", body: batch([{ id: "a", score: 1 }]) });
+    expect(res.status).toBe(401);
+  });
+
+  it("rejects an empty batch, an overlong one and a duplicate id inside it", async () => {
+    const app = makeApp();
+    const { token } = await auth(app);
+    const empty = await app.request("/v1/me/migrate-scores", {
+      method: "POST",
+      headers: bearer(token),
+      body: JSON.stringify({ entries: [] }),
+    });
+    expect(empty.status).toBe(400);
+
+    const tooMany = await app.request("/v1/me/migrate-scores", {
+      method: "POST",
+      headers: bearer(token),
+      body: batch(Array.from({ length: 101 }, (_, i) => ({ id: `e${i}`, score: 1 }))),
+    });
+    expect(tooMany.status).toBe(400);
+
+    const duplicated = await app.request("/v1/me/migrate-scores", {
+      method: "POST",
+      headers: bearer(token),
+      body: batch([
+        { id: "same", score: 1 },
+        { id: "same", score: 2 },
+      ]),
+    });
+    expect(duplicated.status).toBe(400);
+  });
+
+  it("rejects entries with impossible metrics", async () => {
+    const app = makeApp();
+    const { token } = await auth(app);
+    const res = await app.request("/v1/me/migrate-scores", {
+      method: "POST",
+      headers: bearer(token),
+      body: JSON.stringify({
+        entries: [{ id: "x", score: -5, level: 1, chips: 0, maxCombo: 1, date: 1 }],
+      }),
+    });
+    expect(res.status).toBe(400);
+  });
+});
+
 describe("rate limiting", () => {
   it("throttles anonymous session creation per IP", async () => {
     const app = makeApp();

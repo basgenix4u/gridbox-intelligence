@@ -4,6 +4,8 @@ import type {
   AuditRepository,
   DailyBoardEntry,
   LeaderboardEntry,
+  LegacyScoreRecord,
+  LegacyScoreRepository,
   NameReportRecord,
   NewRun,
   PlayerRecord,
@@ -68,10 +70,10 @@ export function createMemoryRepositories(): Repositories {
       p.initials = name.initials;
       return p;
     },
-    async addRunTotals(id, score) {
+    async addRunTotals(id, score, runs = 1) {
       const p = players.get(id);
       if (!p) throw new Error(`player ${id} not found`);
-      p.totalRuns += 1;
+      p.totalRuns += runs;
       p.bestScore = Math.max(p.bestScore, score);
       return p;
     },
@@ -191,5 +193,42 @@ export function createMemoryRepositories(): Repositories {
     },
   };
 
-  return { players: playerRepo, runs: runRepo, reports: reportRepo, audit: auditRepo };
+  const legacy: LegacyScoreRecord[] = [];
+  let legacySeq = 0;
+  const legacyRepo: LegacyScoreRepository = {
+    async insertMany(playerId, entries) {
+      const known = new Set(legacy.filter((e) => e.playerId === playerId).map((e) => e.clientId));
+      let inserted = 0;
+      for (const entry of entries) {
+        if (known.has(entry.clientId)) continue;
+        known.add(entry.clientId);
+        legacySeq += 1;
+        legacy.push({
+          id: legacySeq,
+          playerId,
+          clientId: entry.clientId,
+          score: entry.score,
+          level: entry.level,
+          chips: entry.chips,
+          maxCombo: entry.maxCombo,
+          playedAt: entry.playedAt,
+          scoringVersion: entry.scoringVersion,
+          migratedAt: new Date(),
+        });
+        inserted += 1;
+      }
+      return { inserted };
+    },
+    async list(playerId, limit) {
+      return legacy
+        .filter((e) => e.playerId === playerId)
+        .sort((a, b) => b.score - a.score || a.playedAt - b.playedAt)
+        .slice(0, limit);
+    },
+    async hasAny(playerId) {
+      return legacy.some((e) => e.playerId === playerId);
+    },
+  };
+
+  return { players: playerRepo, runs: runRepo, reports: reportRepo, audit: auditRepo, legacyScores: legacyRepo };
 }

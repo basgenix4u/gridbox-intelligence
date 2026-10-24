@@ -96,8 +96,12 @@ export interface PlayerRepository {
   create(input: { id: string; anonTokenHash: string; displayName: string; initials: string }): Promise<PlayerRecord>;
   touch(id: string): Promise<void>;
   updateName(id: string, name: { displayName: string; initials: string }): Promise<PlayerRecord>;
-  /** Folds a finished run into the player's totals (totalRuns, bestScore). */
-  addRunTotals(id: string, score: number): Promise<PlayerRecord>;
+  /**
+   * Folds finished runs into the player's totals (totalRuns, bestScore).
+   * `runs` is the number of runs the score belongs to — one for a submitted
+   * run, the batch size for a legacy migration.
+   */
+  addRunTotals(id: string, score: number, runs?: number): Promise<PlayerRecord>;
 }
 
 export interface RunRepository {
@@ -119,6 +123,42 @@ export interface RunRepository {
     initials: string;
     score: number;
   }): Promise<void>;
+}
+
+export interface LegacyScoreRecord {
+  id: number;
+  playerId: string;
+  clientId: string;
+  score: number;
+  level: number;
+  chips: number;
+  maxCombo: number;
+  playedAt: number;
+  scoringVersion: number;
+  migratedAt: Date;
+}
+
+export interface LegacyScoreRepository {
+  /**
+   * Stores a batch of legacy entries, skipping the ones already present.
+   * The (player, client_id) unique index makes a retried upload a no-op;
+   * the returned count is what was actually inserted.
+   */
+  insertMany(playerId: string, entries: readonly LegacyScoreInput[]): Promise<{ inserted: number }>;
+  /** The player's migrated history, best first. */
+  list(playerId: string, limit: number): Promise<LegacyScoreRecord[]>;
+  /** True once the player has a migrated history — the client's one-shot guard. */
+  hasAny(playerId: string): Promise<boolean>;
+}
+
+export interface LegacyScoreInput {
+  clientId: string;
+  score: number;
+  level: number;
+  chips: number;
+  maxCombo: number;
+  playedAt: number;
+  scoringVersion: number;
 }
 
 export interface ReportRepository {
@@ -152,4 +192,5 @@ export interface Repositories {
   runs: RunRepository;
   reports: ReportRepository;
   audit: AuditRepository;
+  legacyScores: LegacyScoreRepository;
 }

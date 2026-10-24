@@ -10,6 +10,7 @@ import {
   primaryKey,
   text,
   timestamp,
+  uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
 
@@ -86,6 +87,43 @@ export const runs = gridbox.table(
       .on(t.day, t.mode, t.score.desc())
       .where(sql`${t.validity} = 'ok'`),
     index("runs_player_idx").on(t.playerId, t.submittedAt.desc()),
+  ],
+);
+
+/**
+ * Legacy local history, migrated once from a returning player's browser
+ * (task 3.13). Deliberately separate from `runs`: these scores were produced
+ * before the server existed, so they carry no attestation and must never
+ * appear on the competitive boards. They fold into the player's profile
+ * totals only — `best_score` and `total_runs` — which is what "their local
+ * score history reflects automatically in the overall system" means.
+ *
+ * `client_id` is the id the browser generated for the entry; the unique
+ * (player, client_id) pair is what makes a retried upload a no-op instead of
+ * a duplicate.
+ */
+export const legacyScores = gridbox.table(
+  "legacy_scores",
+  {
+    id: bigserial("id", { mode: "number" }).primaryKey(),
+    playerId: uuid("player_id")
+      .notNull()
+      .references(() => players.id, { onDelete: "cascade" }),
+    /** The entry's id in the browser's own table. */
+    clientId: text("client_id").notNull(),
+    score: integer("score").notNull(),
+    level: integer("level").notNull(),
+    chips: integer("chips").notNull(),
+    maxCombo: integer("max_combo").notNull(),
+    /** When the run was played, in the browser's clock (epoch ms). */
+    playedAt: bigint("played_at", { mode: "number" }).notNull(),
+    /** The formula that produced it — 1 for pre-versioning entries. */
+    scoringVersion: integer("scoring_version").notNull().default(1),
+    migratedAt: timestamp("migrated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("legacy_scores_player_client_idx").on(t.playerId, t.clientId),
+    index("legacy_scores_player_idx").on(t.playerId, t.score.desc()),
   ],
 );
 

@@ -154,6 +154,43 @@ export const LeaderboardResponseSchema = z.object({
 });
 export type LeaderboardResponse = z.infer<typeof LeaderboardResponseSchema>;
 
+// --------------------------------------------------------------- legacy migration
+
+/**
+ * One entry from a returning player's local table (task 3.13). The browser
+ * supplies its own `id`, which is the dedupe key: a retried upload with the
+ * same ids inserts nothing, so the migration is idempotent by construction.
+ */
+export const LegacyScoreSchema = z.object({
+  /** The entry's id in the browser's own table. */
+  id: z.string().trim().min(1).max(128),
+  score: z.number().int().min(0).max(1_000_000),
+  level: z.number().int().min(1).max(100),
+  chips: z.number().int().min(0).max(1_000_000),
+  maxCombo: z.number().int().min(1).max(8),
+  /** When the run was played, epoch ms on the browser's clock. */
+  date: z.number().int().min(0),
+  /** Absent on pre-versioning entries — the server tags those as 1. */
+  scoringVersion: z.number().int().min(1).max(99).optional(),
+});
+export type LegacyScore = z.infer<typeof LegacyScoreSchema>;
+
+/** The batch upload. Capped so a corrupt table cannot flood the endpoint. */
+export const MigrateScoresRequestSchema = z.object({
+  entries: z.array(LegacyScoreSchema).min(1).max(100),
+});
+export type MigrateScoresRequest = z.infer<typeof MigrateScoresRequestSchema>;
+
+export const MigrateScoresResponseSchema = z.object({
+  /** Entries this call actually stored. */
+  migrated: z.number().int().nonnegative(),
+  /** Entries already present from an earlier call — the idempotence proof. */
+  duplicates: z.number().int().nonnegative(),
+  bestScore: z.number().int().nonnegative(),
+  totalRuns: z.number().int().nonnegative(),
+});
+export type MigrateScoresResponse = z.infer<typeof MigrateScoresResponseSchema>;
+
 // --------------------------------------------------------------- moderation
 
 export const NameReportRequestSchema = z.object({
