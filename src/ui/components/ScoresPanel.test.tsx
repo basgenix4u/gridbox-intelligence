@@ -37,6 +37,15 @@ describe("ScoreTable", () => {
     expect(screen.getAllByRole("row")).toHaveLength(4); // header + 3
   });
 
+  it("labels a legacy-formula score and leaves a current one unlabelled", () => {
+    render(<ScoreTable scores={[entry({ id: "old", scoringVersion: 1 }), entry({ id: "new", score: 100 })]} />);
+    // The badge is present for the v1 run, with the version in its tooltip.
+    const badge = screen.getByTitle("Scored with the previous formula (v1)");
+    expect(badge.textContent).toBe("v1");
+    // And only one badge exists — the current run is not labelled.
+    expect(screen.getAllByTitle(/previous formula/)).toHaveLength(1);
+  });
+
   it("renders a placeholder for a blank name", () => {
     render(<ScoreTable scores={[entry({ name: "" })]} />);
     expect(screen.getByText("---")).toBeTruthy();

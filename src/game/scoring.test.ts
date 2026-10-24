@@ -179,6 +179,54 @@ describe("migrateScores", () => {
   });
 });
 
+describe("scoring-version upgrade on load", () => {
+  const KEY = "gridbox-intelligence.scores.v1";
+
+  it("tags a pre-versioning table as version 1 and writes the tags back", () => {
+    const legacy = [
+      { id: "old-1", name: "ABC", score: 900, level: 5, chips: 60, maxCombo: 8, date: 1 },
+      { id: "old-2", name: "XYZ", score: 400, level: 3, chips: 30, maxCombo: 4, date: 2 },
+    ];
+    const store = createMemoryStore({ [KEY]: JSON.stringify(legacy) });
+
+    const loaded = loadScores(store);
+    expect(loaded.map((e) => e.scoringVersion)).toEqual([1, 1]);
+
+    // The upgrade is durable: the stored table now carries the tags.
+    const stored = JSON.parse(store.get(KEY) ?? "[]") as { scoringVersion?: number }[];
+    expect(stored.every((e) => e.scoringVersion === 1)).toBe(true);
+  });
+
+  it("is idempotent — a second load does not rewrite the table", () => {
+    const legacy = [{ id: "old-1", name: "ABC", score: 900, level: 5, chips: 60, maxCombo: 8, date: 1 }];
+    const store = createMemoryStore({ [KEY]: JSON.stringify(legacy) });
+
+    loadScores(store);
+    const afterFirst = store.get(KEY);
+    loadScores(store);
+    expect(store.get(KEY)).toBe(afterFirst);
+  });
+
+  it("leaves an already-versioned table untouched", () => {
+    const current = [entry({ id: "new-1", score: 500 })];
+    const store = createMemoryStore({ [KEY]: JSON.stringify(current) });
+    const before = store.get(KEY);
+    expect(loadScores(store).map((e) => e.scoringVersion)).toEqual([CURRENT_SCORING_VERSION]);
+    expect(store.get(KEY)).toBe(before);
+  });
+
+  it("keeps a mixed table's versions distinct", () => {
+    const mixed = [
+      { id: "old", name: "ABC", score: 900, level: 5, chips: 60, maxCombo: 8, date: 1 },
+      { ...entry({ id: "new" }), score: 400 },
+    ];
+    const store = createMemoryStore({ [KEY]: JSON.stringify(mixed) });
+    const loaded = loadScores(store);
+    expect(loaded.find((e) => e.id === "old")?.scoringVersion).toBe(1);
+    expect(loaded.find((e) => e.id === "new")?.scoringVersion).toBe(CURRENT_SCORING_VERSION);
+  });
+});
+
 describe("corrupt storage resilience", () => {
   it("survives invalid JSON", () => {
     const store = createMemoryStore({ "gridbox-intelligence.scores.v1": "{not json" });

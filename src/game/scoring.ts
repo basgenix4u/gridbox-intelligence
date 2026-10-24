@@ -128,8 +128,27 @@ export function sortScores(list: readonly ScoreEntry[]): ScoreEntry[] {
   return [...list].sort((a, b) => b.score - a.score || a.date - b.date);
 }
 
+/** True when the stored table predates `scoringVersion` and still needs tagging. */
+function isLegacyTable(raw: unknown): boolean {
+  return Array.isArray(raw) && raw.some((e) => isRecord(e) && e.scoringVersion === undefined);
+}
+
+/**
+ * Reads the local table, upgrading a pre-versioning one on the way through.
+ *
+ * The upgrade is one-time and idempotent: entries written before versioning are
+ * tagged `scoringVersion: 1` and the tagged table is written back, so a
+ * returning player's history carries its version from then on and a second load
+ * finds nothing to change. New entries are written with
+ * `CURRENT_SCORING_VERSION` by the caller (see App.tsx).
+ */
 export function loadScores(store: KeyValueStore = defaultKV()): ScoreEntry[] {
-  return parseScores(readJson(store, KEY));
+  const raw = readJson(store, KEY);
+  const parsed = parseScores(raw);
+  if (isLegacyTable(raw)) {
+    saveScores(migrateScores(parsed), store);
+  }
+  return parsed;
 }
 
 export function saveScores(list: readonly ScoreEntry[], store: KeyValueStore = defaultKV()): void {

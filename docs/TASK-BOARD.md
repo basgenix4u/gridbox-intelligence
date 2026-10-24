@@ -156,8 +156,21 @@ policies in `0001_rls.sql` are load-bearing rather than decorative.
       (explicit origins, no wildcard) plus `AUTH_SECRET` via a superRefine, so
       `/readyz` reports the misconfiguration as degraded. Covered by
       `server/env.test.ts` (10 tests) and five CORS tests.
-- [~] 3.11 API integration tests against a test database + shared contract types
-- [ ] 3.12 Legacy-score migration: tag existing local entries `scoringVersion: 1`, new entries `2`
+- [x] 3.11 API integration tests against a test database + shared contract types
+      — commit `84bc548`. Shared contract types shipped with the API
+      (`src/shared/contracts.ts`, 24 tests). The database half uses **PGlite**
+      — Postgres compiled to WASM, in-process — booted by
+      `server/adapters/testDatabase.ts`, which replays the project's own
+      migration files so schema drift fails the suite first.
+      `server/adapters/drizzleRepositories.test.ts` (25 tests) covers the SQL
+      the memory fakes cannot: composite-key daily upsert, DISTINCT ON
+      best-per-player, rank window function, held-name exclusion on both
+      boards, unique token hash, FK cascade / set-null. `api.integration.test.ts`
+      (6 tests) drives the whole stack over that database. The suite found two
+      real driver bugs on day one — `db.execute()`'s result shape differs per
+      driver, and the 23505 replay guard missed the SQLSTATE when the driver
+      wraps the error — both fixed in the adapter.
+- [~] 3.12 Legacy-score migration: tag existing local entries `scoringVersion: 1`, new entries `2`
 - [ ] 3.13 **Local-score migration (2026-10-24)**: one-time idempotent upload of a returning player's legacy
       local history when they set their username — batch endpoint, client-supplied ids for dedupe, entries
       tagged `scoringVersion: 1` + `migrated`, folded into profile totals (`totalRuns`, `bestScore`), local

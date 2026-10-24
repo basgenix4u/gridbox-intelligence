@@ -1,7 +1,7 @@
 import type { ReactElement } from "react";
 import { useState } from "react";
 import type { ScoreEntry } from "@/game/scoring";
-import { MAX_SCORES } from "@/game/scoring";
+import { CURRENT_SCORING_VERSION, MAX_SCORES } from "@/game/scoring";
 import { Button } from "./ui";
 import { formatDate } from "../utils/format";
 
@@ -37,13 +37,26 @@ export function ScoreTable({ scores, highlightId, limit = MAX_SCORES, compact = 
         <tbody>
           {rows.map((e, i) => {
             const isNew = highlightId != null && e.id === highlightId;
+            // A score from the previous scoring formula is labelled, not
+            // hidden: the player earned it, and the difference is visible.
+            const isLegacy = e.scoringVersion < CURRENT_SCORING_VERSION;
             return (
               <tr
                 key={e.id}
                 className={`border-t border-ink-800/80 ${isNew ? "row-new text-bloom-300" : i === 0 ? "text-bloom-300" : "text-veil-200"}`}
               >
                 <td className="py-1.5 pl-3 font-display text-xs font-bold text-veil-300">{i + 1}</td>
-                <td className="py-1.5 font-display text-xs font-bold tracking-widest">{e.name || "---"}</td>
+                <td className="py-1.5 font-display text-xs font-bold tracking-widest">
+                  {e.name || "---"}
+                  {isLegacy && (
+                    <span
+                      className="ml-1 rounded bg-ink-800 px-1 py-0.5 align-middle text-[9px] font-bold tracking-widest text-veil-300"
+                      title={`Scored with the previous formula (v${e.scoringVersion})`}
+                    >
+                      v{e.scoringVersion}
+                    </span>
+                  )}
+                </td>
                 <td className="py-1.5 text-right font-display text-sm font-bold">{e.score}</td>
                 <td className="py-1.5 text-right font-semibold text-veil-300">{e.level}</td>
                 {!compact && (
