@@ -41,6 +41,7 @@
     "@axe-core/playwright": "^4.13.0",
     "@commitlint/cli": "^20.5.3",
     "@commitlint/config-conventional": "^20.5.3",
+    "@electric-sql/pglite": "^0.5.11",
     "@eslint/js": "~9.39.0",
     "@playwright/test": "^1.64.0",
     "@tailwindcss/vite": "4.1.17",
@@ -71,7 +72,7 @@
     "vite-plugin-singlefile": "2.3.0",
     "vitest": "^4.1.11"
   },
-  "description": "Gridbox Intelligence \u2014 a fast grid arcade game. Harvest data chips, outsmart increasingly intelligent machines, and pulse to purge them.",
+  "description": "Gridbox Intelligence — a fast grid arcade game. Harvest data chips, outsmart increasingly intelligent machines, and pulse to purge them.",
   "license": "MIT",
   "engines": {
     "node": ">=20.19"

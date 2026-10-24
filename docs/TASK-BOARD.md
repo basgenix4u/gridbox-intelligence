@@ -126,10 +126,37 @@ policies in `0001_rls.sql` are load-bearing rather than decorative.
       this task as the run service, `services/anticheat.ts` and `ratelimit.ts`; 3.9's filter + queue
       shipped as `server/names.ts` + `routes/moderation.ts`. Remaining for those rows: the
       database-backed integration pass (3.11) and the client wiring (Stage 4).
-- [~] 3.8 Anti-cheat: envelope validation, run attestation (nonce + hash chain), statistical flagging → `audit_log`
-- [ ] 3.9 **Moderation**: display-name profanity filter, report endpoint, moderation queue view
-- [ ] 3.10 Rate limiting (pluggable: in-memory dev / Upstash prod) + security headers + CORS allowlist
-- [ ] 3.11 API integration tests against a test database + shared contract types
+- [x] 3.8 Anti-cheat: envelope validation, run attestation (nonce + hash chain), statistical flagging → `audit_log`
+      — commit `fc038e0`. Everything 3.7 shipped plus the wall-clock envelope
+      (a run's claimed duration must fit the time that actually passed since the
+      server issued it; 10s of slack so clock skew flags rather than rejects),
+      an injectable clock end-to-end (`AppOptions.now` → token issuance), and
+      `AuditRepository.list()` so flagged/rejected runs and moderation
+      resolutions read back as a trail. `server/services/runs.test.ts` (23
+      tests) covers utcDay/dailySeed, chain recomputation, token binding,
+      replay 409, both verdict tiers with their audit entries, the timing
+      cheat, and the stored-as-evidence rule for rejected runs.
+- [x] 3.9 **Moderation**: display-name profanity filter, report endpoint, moderation queue view
+      — filter, report endpoint and token-protected admin resolve shipped in
+      `d2d30ea` (3.7): `server/names.ts` (leet/unicode-folded wordlist, word
+      boundaries so "Scunthorpe" stays playable, single-letter-run collapse for
+      the "f u c k" evasion, initials blocklist), `POST /v1/names/:id/report`,
+      `GET /v1/admin/moderation`, `POST /v1/admin/moderation/:id`. Held names
+      are excluded from every board at SQL level in the drizzle adapter and in
+      memory for tests. 12 tests in `server/names.test.ts` + the moderation
+      block of the API suite (report holds the name, clear restores it, uphold
+      resets it, self-report and unknown player refused).
+- [x] 3.10 Rate limiting (pluggable: in-memory dev / Upstash prod) + security headers + CORS allowlist
+      — `server/ratelimit.ts` (fixed windows per key: auth 10/min, submit
+      20/min, report 5/h, read 120/min; Upstash REST adapter, fail-open on
+      backend errors) shipped in 3.7; `secureHeaders` on every response.
+      Commit `33805a8` closes the last gap: the CORS allowlist **fails closed**
+      — an environment that did not validate approves no cross-origin request
+      instead of falling back to `*` — and production pins `ALLOWED_ORIGINS`
+      (explicit origins, no wildcard) plus `AUTH_SECRET` via a superRefine, so
+      `/readyz` reports the misconfiguration as degraded. Covered by
+      `server/env.test.ts` (10 tests) and five CORS tests.
+- [~] 3.11 API integration tests against a test database + shared contract types
 - [ ] 3.12 Legacy-score migration: tag existing local entries `scoringVersion: 1`, new entries `2`
 - [ ] 3.13 **Local-score migration (2026-10-24)**: one-time idempotent upload of a returning player's legacy
       local history when they set their username — batch endpoint, client-supplied ids for dedupe, entries

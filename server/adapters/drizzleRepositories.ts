@@ -1,6 +1,9 @@
 import { and, desc, eq, sql } from "drizzle-orm";
-import type { Database } from "../../db/client.js";
-import { players, runs, nameReports, auditLog, leaderboardDaily } from "../../db/schema.js";
+import type { PgDatabase } from "drizzle-orm/pg-core";
+import type * as schema from "../../db/schema.js";
+import type { PostgresJsQueryResultHKT } from "drizzle-orm/postgres-js/session";
+import type { PgliteQueryResultHKT } from "drizzle-orm/pglite/session";
+import { auditLog, leaderboardDaily, nameReports, players, runs } from "../../db/schema.js";
 import type {
   AuditRepository,
   DailyBoardEntry,
@@ -28,10 +31,49 @@ import type { RunMode, RunValidity } from "../../src/shared/contracts.js";
  * rank are set operations, and Postgres does them better than Node can.
  */
 
+/**
+ * Both drivers the adapters run against: the production Supabase pooler
+ * (postgres-js) and PGlite in the integration tests. The SQL is identical;
+ * only the query-result wrapper differs, which `rowsOf` normalises.
+ */
+type SupportedDatabase = PgDatabase<PostgresJsQueryResultHKT | PgliteQueryResultHKT, typeof schema>;
+
 const HELD_NAMES_EXCLUDE = sql`NOT EXISTS (
   SELECT 1 FROM gridbox.name_reports nr
   WHERE nr.reported_player_id = r.player_id AND nr.status = 'pending'
 )`;
+
+/**
+ * The SQLSTATE of a failed query, unwrapping the driver-specific wrappers:
+ * postgres-js puts `code` on the error itself, PGlite nests the pg error under
+ * `cause`. Without the walk, a unique-violation looks like an unknown error
+ * and the replay guard silently stops working.
+ */
+function sqlState(err: unknown): string | undefined {
+  let current: unknown = err;
+  for (let depth = 0; depth < 5 && current !== null && typeof current === "object"; depth++) {
+    const candidate = current as { code?: unknown; cause?: unknown };
+    if (typeof candidate.code === "string") return candidate.code;
+    current = candidate.cause;
+  }
+  return undefined;
+}
+
+/**
+ * drizzle's `execute()` result shape is driver-specific: postgres-js hands back
+ * the row array, PGlite a `{ rows }` result object. Normalising once here keeps
+ * every query below reading the same, and is what let the integration suite
+ * catch the difference against a real Postgres.
+ */
+async function rowsOf<T>(query: Promise<unknown>): Promise<T[]> {
+  const result = await query;
+  if (Array.isArray(result)) return result as T[];
+  if (result !== null && typeof result === "object" && "rows" in result) {
+    const rows = result.rows;
+    return Array.isArray(rows) ? (rows as T[]) : [];
+  }
+  return [];
+}
 
 interface BoardRow {
   playerId: string;
@@ -42,7 +84,7 @@ interface BoardRow {
   [key: string]: unknown;
 }
 
-const playerRepo = (db: Database): PlayerRepository => ({
+const playerRepo = (db: SupportedDatabase): PlayerRepository => ({
   async findByTokenHash(anonTokenHash) {
     const rows = await db.select().from(players).where(eq(players.anonTokenHash, anonTokenHash)).limit(1);
     return rows[0] ? toPlayerRecord(rows[0]) : null;
@@ -102,7 +144,7 @@ function toPlayerRecord(row: typeof players.$inferSelect): PlayerRecord {
   };
 }
 
-const runRepo = (db: Database): RunRepository => ({
+const runRepo = (db: SupportedDatabase): RunRepository => ({
   async findById(id) {
     const rows = await db.select().from(runs).where(eq(runs.id, id)).limit(1);
     return rows[0] ? toRunRecord(rows[0]) : null;
@@ -131,7 +173,7 @@ const runRepo = (db: Database): RunRepository => ({
         .returning();
       return toRunRecord(rows[0]);
     } catch (err) {
-      if ((err as { code?: string }).code === "23505") {
+      if (sqlState(err) === "23505") {
         throw new DuplicateRunError();
       }
       throw err;
@@ -141,21 +183,24 @@ const runRepo = (db: Database): RunRepository => ({
     await db.update(runs).set({ validity }).where(eq(runs.id, id));
   },
   async globalBoard(mode: RunMode, limit: number): Promise<LeaderboardEntry[]> {
-    const rows = await db.execute<BoardRow>(sql`
+    const rows = await rowsOf<BoardRow>(
+      db.execute<BoardRow>(sql`
       SELECT DISTINCT ON (r.player_id)
         r.player_id AS "playerId", p.initials, r.score, r.level
       FROM gridbox.runs r
       JOIN gridbox.players p ON p.id = r.player_id
       WHERE r.mode = ${mode} AND r.validity = 'ok' AND ${HELD_NAMES_EXCLUDE}
       ORDER BY r.player_id, r.score DESC
-    `);
+    `),
+    );
     return [...rows]
       .sort((a, b) => b.score - a.score)
       .slice(0, limit)
       .map((r) => ({ playerId: r.playerId, initials: r.initials, score: Number(r.score), level: Number(r.level) }));
   },
   async around(playerId: string, mode: RunMode, span: number) {
-    const rows = await db.execute<BoardRow & { rank: number }>(sql`
+    const rows = await rowsOf<BoardRow & { rank: number }>(
+      db.execute<BoardRow & { rank: number }>(sql`
       WITH best AS (
         SELECT DISTINCT ON (r.player_id) r.player_id, r.score, r.level
         FROM gridbox.runs r
@@ -172,7 +217,8 @@ const runRepo = (db: Database): RunRepository => ({
         SELECT COALESCE(MAX(rank), 1) FROM ranked WHERE "playerId" = ${playerId}
       ) + ${span}
       ORDER BY "rank"
-    `);
+    `),
+    );
     const mine = rows.find((r) => r.playerId === playerId);
     return {
       rank: mine ? Number(mine.rank) : null,
@@ -185,7 +231,8 @@ const runRepo = (db: Database): RunRepository => ({
     };
   },
   async dailyBoard(day: string, mode: RunMode, limit: number): Promise<DailyBoardEntry[]> {
-    const rows = await db.execute<{ playerId: string; initials: string; score: number }>(sql`
+    const rows = await rowsOf<{ playerId: string; initials: string; score: number }>(
+      db.execute<{ playerId: string; initials: string; score: number }>(sql`
       SELECT d.player_id AS "playerId", d.initials, d.score
       FROM gridbox.leaderboard_daily d
       WHERE d.day = ${day} AND d.mode = ${mode}
@@ -194,8 +241,9 @@ const runRepo = (db: Database): RunRepository => ({
           WHERE nr.reported_player_id = d.player_id AND nr.status = 'pending'
         )
       ORDER BY d.score DESC
-      LIMIT ${limit}
-    `);
+        LIMIT ${limit}
+      `),
+    );
     return [...rows].map((r) => ({ playerId: r.playerId, initials: r.initials, score: Number(r.score) }));
   },
   async upsertDailyBest(input) {
@@ -248,7 +296,7 @@ export class DuplicateRunError extends Error {
   }
 }
 
-const reportRepo = (db: Database): ReportRepository => ({
+const reportRepo = (db: SupportedDatabase): ReportRepository => ({
   async create(input) {
     const rows = await db
       .insert(nameReports)
@@ -302,7 +350,7 @@ function toReportRecord(row: typeof nameReports.$inferSelect): NameReportRecord 
   };
 }
 
-const auditRepo = (db: Database): AuditRepository => ({
+const auditRepo = (db: SupportedDatabase): AuditRepository => ({
   async log(entry) {
     await db.insert(auditLog).values({ actor: entry.actor, action: entry.action, meta: entry.meta });
   },
@@ -318,6 +366,6 @@ const auditRepo = (db: Database): AuditRepository => ({
   },
 });
 
-export function createDrizzleRepositories(db: Database): Repositories {
+export function createDrizzleRepositories(db: SupportedDatabase): Repositories {
   return { players: playerRepo(db), runs: runRepo(db), reports: reportRepo(db), audit: auditRepo(db) };
 }
