@@ -147,3 +147,43 @@ describe("request handling", () => {
     expect(allowed.headers.get("access-control-allow-origin")).toBe("https://gridbox.example");
   });
 });
+
+describe("route registration", () => {
+  /**
+   * The production shape: `api/index.ts` calls `createApp()` with no options at
+   * all, so the only thing that can wire the database is `DATABASE_URL`. When
+   * that branch is missing the game routes are never mounted and the API
+   * answers 404 "No route for POST /v1/auth/anonymous" to every real request —
+   * `/healthz` and `/readyz` still look perfectly healthy, which is exactly how
+   * this bug reached a live deployment unnoticed.
+   */
+  it("mounts the game routes from DATABASE_URL when no db is injected", async () => {
+    const app = createApp({
+      env: { ...baseEnv, DATABASE_URL: "postgresql://gridbox:secret@127.0.0.1:5432/gridbox" },
+      envSource: { NODE_ENV: "test" },
+    });
+    const res = await app.request("/v1/auth/anonymous", { method: "POST" });
+    // Not 404-with-"No route": the route exists. It fails later, on the
+    // connection attempt, because nothing is listening on 127.0.0.1:5432.
+    const body = (await res.json()) as { error?: { message?: string } };
+    expect(body.error?.message ?? "").not.toContain("No route for");
+    expect(res.status).not.toBe(404);
+  });
+
+  it("keeps health routes available with no database at all", async () => {
+    const app = createApp({ env: baseEnv, envSource: { NODE_ENV: "test" }, db: null });
+    const res = await app.request("/v1/healthz");
+    expect(res.status).toBe(200);
+  });
+
+  it("an injected null db still means no game routes", async () => {
+    const app = createApp({
+      env: { ...baseEnv, DATABASE_URL: "postgresql://gridbox:secret@127.0.0.1:5432/gridbox" },
+      envSource: { NODE_ENV: "test" },
+      db: null,
+    });
+    const res = await app.request("/v1/auth/anonymous", { method: "POST" });
+    const body = (await res.json()) as { error?: { message?: string } };
+    expect(body.error?.message ?? "").toContain("No route for");
+  });
+});

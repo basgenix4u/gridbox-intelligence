@@ -84,6 +84,17 @@ export function createApp(options: AppOptions = {}): Hono<AppBindings> {
 
   app.onError(onError);
 
+  /**
+   * The database this deployment talks to.
+   *
+   * Precedence matters and is deliberately narrow: an injected `db` always wins
+   * (tests, and a future composition root), `null` means "explicitly no
+   * database" (health-check-only deployments), and only when neither was given
+   * is one built from `DATABASE_URL`. That last branch is what production uses:
+   * `api/index.ts` calls `createApp()` with no options at all, so without it the
+   * game routes would never be mounted and the API would serve nothing but
+   * `/healthz` and `/readyz`.
+   */
   const db = (): Database | null => {
     if (options.db !== undefined) return options.db;
     if (!env.DATABASE_URL) return null;
@@ -134,8 +145,9 @@ export function createApp(options: AppOptions = {}): Hono<AppBindings> {
   // Repositories are the only persistence seam: injected in tests, built from
   // the database in production, absent (503) when nothing is configured.
   const now = options.now ?? (() => new Date());
+  const connection = db();
   const repositories: Repositories | null =
-    options.repositories ?? (options.db ? createDrizzleRepositories(options.db) : null);
+    options.repositories ?? (connection ? createDrizzleRepositories(connection) : null);
   const limiter = options.rateLimiter ?? createMemoryRateLimiter();
   const serviceAvailable = repositories !== null;
 
