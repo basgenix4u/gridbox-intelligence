@@ -2,6 +2,7 @@ import type { ReactElement } from "react";
 import { useEffect, useRef } from "react";
 import type { Game } from "@/game/engine";
 import { renderGame } from "@/game/render";
+import { browserRafWatchdogDeps, createRafWatchdog, type RafWatchdog } from "@/game/rafWatchdog";
 import type { Dir } from "@/game/types";
 
 interface Props {
@@ -9,14 +10,38 @@ interface Props {
   reserveBottom: number;
   reserveRight: number;
   onUnlockAudio: () => void;
+  /** Arm the stall watchdog — true only while a run is live. */
+  watchActive?: boolean;
+  /** The render loop stalled on a visible tab. */
+  onStall?: () => void;
+  /** Frames resumed after a stall (or the guard was disarmed mid-stall). */
+  onStallRecover?: () => void;
 }
 
 const SWIPE_FIRST = 20;
 const SWIPE_REPEAT = 38;
 
-export function GameCanvas({ game, reserveBottom, reserveRight, onUnlockAudio }: Props): ReactElement {
+export function GameCanvas({
+  game,
+  reserveBottom,
+  reserveRight,
+  onUnlockAudio,
+  watchActive = false,
+  onStall,
+  onStallRecover,
+}: Props): ReactElement {
   const ref = useRef<HTMLCanvasElement>(null);
   const swipe = useRef<{ x: number; y: number; id: number; moved: boolean } | null>(null);
+
+  // Callbacks live in refs so a new inline identity from the parent never
+  // restarts the render loop.
+  const onStallRef = useRef(onStall);
+  const onRecoverRef = useRef(onStallRecover);
+  const watchdogRef = useRef<RafWatchdog | null>(null);
+  useEffect(() => {
+    onStallRef.current = onStall;
+    onRecoverRef.current = onStallRecover;
+  }, [onStall, onStallRecover]);
 
   useEffect(() => {
     const canvas = ref.current;
@@ -39,11 +64,21 @@ export function GameCanvas({ game, reserveBottom, reserveRight, onUnlockAudio }:
     window.addEventListener("resize", apply);
     window.addEventListener("orientationchange", apply);
 
+    const watchdog: RafWatchdog = createRafWatchdog(
+      {
+        onStall: () => onStallRef.current?.(),
+        onRecover: () => onRecoverRef.current?.(),
+      },
+      browserRafWatchdogDeps,
+    );
+    watchdogRef.current = watchdog;
+
     let raf = 0;
     let last = performance.now();
     const frame = (now: number) => {
       const dt = Math.min(50, Math.max(0, now - last));
       last = now;
+      watchdog.heartbeat();
       game.update(dt);
       renderGame(game, ctx);
       raf = requestAnimationFrame(frame);
@@ -57,11 +92,20 @@ export function GameCanvas({ game, reserveBottom, reserveRight, onUnlockAudio }:
     }
 
     return () => {
+      watchdog.stop();
+      watchdogRef.current = null;
       cancelAnimationFrame(raf);
       window.removeEventListener("resize", apply);
       window.removeEventListener("orientationchange", apply);
     };
   }, [game, reserveBottom, reserveRight]);
+
+  // Arm/disarm without restarting the loop: arming re-opens the grace window,
+  // so a fresh run is never judged by the silence that came before it. Effects
+  // run in order, so the watchdog from the effect above already exists here.
+  useEffect(() => {
+    watchdogRef.current?.setActive(watchActive && Boolean(onStall));
+  }, [watchActive, onStall]);
 
   const onPointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
     if (e.pointerType === "mouse" && e.button !== 0) return;

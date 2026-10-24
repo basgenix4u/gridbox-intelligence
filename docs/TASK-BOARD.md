@@ -87,13 +87,23 @@ policies in `0001_rls.sql` are load-bearing rather than decorative.
 - [x] 3.2 `core/adapters`: seeded `mulberry32` RNG (enables F1 daily + F7 replay + deterministic tests),
       schema-versioned storage, WebAudio adapter, no-op telemetry — **deviation:** storage validation is
       hand-rolled, not Zod (Zod cost +88 kB on the client; see `scoring.ts` for the rationale)
-- [~] 3.3 Error boundary + RAF watchdog + dev error overlay
-- [ ] 3.4 Fix A3–A9: SSR guard, render-time side effects, RAF teardown on resize, UUID ids,
-      font-metric stabilisation, storage validation
+- [x] 3.3 Error boundary + RAF watchdog + dev error overlay
+      — `src/ui/components/ErrorBoundary.tsx` (recovery panel, focus management, DEV-only stack overlay, console
+      logging, optional `onError` reporter) wired in `main.tsx`; pure watchdog core in `src/game/rafWatchdog.ts`
+      (injectable clock/timers/visibility, 2.5 s stall window, arm/disarm re-opens the grace window) driven by
+      the canvas frame loop; `useStallGuard` pauses the run and shows `StallNotice` (role=alert) with
+      Resume / Main menu; auto-dismiss on recovery. Engine gained `pause()`/`resume()` methods, which also
+      removed 4 pre-existing lint warnings. 26 new tests.
+- [x] 3.4 Fix A3–A9 — **verified already complete 2026-10-24:** SSR guard (`detectTouch` typeof-window check),
+      render-time side effects (refs written in effects, never during render), RAF teardown on resize
+      (effect cleanup cancels the loop and removes listeners; resize only re-applies sizing), UUID ids
+      (`createRunId` via `crypto.randomUUID` with fallback), font-metric stabilisation (`document.fonts.load`
+      preloading in `GameCanvas`), storage validation (hand-rolled `parseEntry`/`parseScores` predicates in
+      `scoring.ts` — Zod deliberately avoided on the client for the ~88 kB bundle cost, rationale in-file)
 - [x] 3.5 Unit tests: engine rules, BFS distance fields, difficulty curves, combo/pulse logic, storage, `sanitizeName`
       — **verified complete 2026-10-24: 240 tests / 25 files passing.** ("shield" removed from this line — no
       shield exists in the game; it was a stale reference.)
-- [ ] 3.6 Integration tests: deterministic headless run to game-over via seeded RNG (reuse the balance harness)
+- [~] 3.6 Integration tests: deterministic headless run to game-over via seeded RNG (reuse the balance harness)
 - [ ] 3.7 API: `POST /auth/anonymous`, `GET|PATCH /me`, `POST /runs/start`, `POST /runs/:id/submit`,
       `GET /leaderboard`, `GET /leaderboard/around`, `GET /daily`, `GET /healthz`, `GET /readyz`
 - [ ] 3.8 Anti-cheat: envelope validation, run attestation (nonce + hash chain), statistical flagging → `audit_log`

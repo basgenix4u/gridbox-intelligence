@@ -30,6 +30,8 @@ import { StartScreen } from "@/ui/components/StartScreen";
 import { PauseScreen } from "@/ui/components/PauseScreen";
 import { GameOverScreen } from "@/ui/components/GameOverScreen";
 import { ScoresPanel } from "@/ui/components/ScoresPanel";
+import { StallNotice } from "@/ui/components/StallNotice";
+import { useStallGuard } from "./useStallGuard";
 
 const ACHIEVEMENT_BY_ID = new Map(ACHIEVEMENTS.map((a) => [a.id, a] as const));
 
@@ -87,6 +89,7 @@ interface LastRun {
 export default function App(): ReactElement {
   const [synth] = useState(() => new Synth());
   const [game] = useState(() => new Game(synth));
+  const stall = useStallGuard(game);
   const [phase, setPhase] = useState<Phase>("menu");
   const [menuView, setMenuView] = useState<"main" | "scores">("main");
   const [scores, setScores] = useState<ScoreEntry[]>(() => loadScores());
@@ -163,21 +166,20 @@ export default function App(): ReactElement {
 
   const pause = useCallback(() => {
     if (phaseRef.current !== "playing") return;
-    game.paused = true;
-    game.clearHeld();
+    game.pause();
     setPausedScore(game.score);
     setPhase("paused");
   }, [game]);
 
   const resume = useCallback(() => {
     synth.unlock();
-    game.paused = false;
+    game.resume();
     setPhase("playing");
   }, [game, synth]);
 
   const toMenu = useCallback(() => {
     synth.ui();
-    game.paused = false;
+    game.resume();
     game.startAttract();
     setPulseReady(false);
     setMenuView("main");
@@ -355,6 +357,9 @@ export default function App(): ReactElement {
           reserveBottom={touchPortrait ? TOUCH_H : isTouch ? 0 : 36}
           reserveRight={touchLandscape ? TOUCH_W : 0}
           onUnlockAudio={unlockAudio}
+          watchActive={phase === "playing"}
+          onStall={stall.onStall}
+          onStallRecover={stall.onStallRecover}
         />
         {isTouch ? (
           <TouchControls
@@ -437,6 +442,16 @@ export default function App(): ReactElement {
           isTouch={isTouch}
           newBest={lastRun.newBest}
           nudge={lastRun.nudge}
+        />
+      )}
+
+      {stall.stalled && (
+        <StallNotice
+          onResume={stall.resume}
+          onMenu={() => {
+            stall.resume();
+            toMenu();
+          }}
         />
       )}
 

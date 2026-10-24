@@ -150,6 +150,21 @@ export class Game {
     this.reset("attract");
   }
 
+  /**
+   * Freezes updates without ending the run — the pause screen and the RAF
+   * watchdog both use this. Held keys are dropped so the player does not
+   * resume already moving in a stale direction.
+   */
+  pause(): void {
+    this.paused = true;
+    this.clearHeld();
+  }
+
+  /** Resumes a paused run. */
+  resume(): void {
+    this.paused = false;
+  }
+
   private makePlayer(): Player {
     return {
       gx: 4,
