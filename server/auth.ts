@@ -49,15 +49,24 @@ export interface RunStartClaims {
   day: string;
   seed: number;
   nonce: string;
+  /**
+   * Epoch ms the token was issued — populated by `verifyRunStartToken` from
+   * the JWT's `iat`, never by the issuer (the signer stamps it).
+   */
+  issuedAtMs?: number;
 }
 
-export async function issueRunStartToken(claims: RunStartClaims, secret: string): Promise<string> {
+export async function issueRunStartToken(
+  claims: RunStartClaims,
+  secret: string,
+  now: () => Date = () => new Date(),
+): Promise<string> {
   return new SignJWT({ mode: claims.mode, day: claims.day, seed: claims.seed, nonce: claims.nonce })
     .setProtectedHeader({ alg: "HS256", typ: "JWT" })
     .setSubject(claims.playerId)
     .setJti(claims.runId)
     .setIssuer(ISSUER)
-    .setIssuedAt()
+    .setIssuedAt(Math.floor(now().getTime() / 1000))
     .setExpirationTime(`${START_TOKEN_TTL_SECONDS}s`)
     .sign(secretKey(secret));
 }
@@ -81,6 +90,7 @@ export async function verifyRunStartToken(
       day: payload.day,
       seed: payload.seed,
       nonce: payload.nonce,
+      issuedAtMs: typeof payload.iat === "number" ? payload.iat * 1000 : 0,
     };
   } catch {
     return null;

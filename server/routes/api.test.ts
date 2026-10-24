@@ -16,8 +16,21 @@ import type { RunStartResponse } from "../../src/shared/contracts.js";
 
 const AUTH_SECRET = "test-secret-0123456789abcdef0123456789abcdef";
 const MODERATION_TOKEN = "moderator-token-0123456789abcdef";
+const T0 = Date.parse("2026-10-24T10:00:00.000Z");
+
+/**
+ * The app's clock. Each `makeApp()` resets it, so every test starts at the
+ * same instant and can fast-forward through the play time of a run — which is
+ * what makes the wall-clock envelope check testable without sleeping.
+ */
+const clock = { ms: T0 };
+const nowFn = (): Date => new Date(clock.ms);
+function advance(ms: number): void {
+  clock.ms += ms;
+}
 
 function makeApp(repos: Repositories = createMemoryRepositories()) {
+  clock.ms = T0;
   return createApp({
     envSource: {
       NODE_ENV: "test",
@@ -28,6 +41,7 @@ function makeApp(repos: Repositories = createMemoryRepositories()) {
     },
     repositories: repos,
     rateLimiter: undefined,
+    now: nowFn,
   });
 }
 
@@ -70,6 +84,8 @@ interface SubmitOverrides {
   nonce?: string;
   chainLinks?: number;
   startToken?: string;
+  /** Simulate the player NOT taking the claimed time (the timing cheat). */
+  skipPlayTime?: boolean;
 }
 
 async function submit(
@@ -82,6 +98,9 @@ async function submit(
   const durationMs = overrides.durationMs ?? 60_000;
   const nonce = overrides.nonce ?? start.nonce;
   const links = overrides.chainLinks ?? Math.max(1, Math.round(durationMs / 500));
+  // The run genuinely takes as long as it claims, unless the test is probing
+  // the wall-clock envelope.
+  if (!overrides.skipPlayTime) advance(durationMs);
   const res = await app.request(`/v1/runs/${runId}/submit`, {
     method: "POST",
     headers: bearer(token),
@@ -337,6 +356,29 @@ describe("run lifecycle", () => {
       level: 43,
       durationMs: 60_000,
     });
+    const body = (await res.json()) as { accepted: boolean; validity: string };
+    expect(body.accepted).toBe(false);
+    expect(body.validity).toBe("suspect");
+
+    const board = (await (await app.request("/v1/leaderboard")).json()) as { rows: unknown[] };
+    expect(board.rows).toHaveLength(0);
+  });
+
+  it("flags a run submitted long before its claimed duration elapsed", async () => {
+    const app = makeApp();
+    const { token } = await auth(app);
+    const start = (await (
+      await app.request("/v1/runs/start", {
+        method: "POST",
+        headers: bearer(token),
+        body: JSON.stringify({ mode: "endless", clientVersion: "0.1.0" }),
+      })
+    ).json()) as RunStartResponse;
+    // The clock never advances: a 60-second run submitted the instant it
+    // started cannot have been played. The stats are plausible, so only the
+    // wall-clock envelope catches it.
+    const res = await submit(app, token, start.runId, start, { skipPlayTime: true });
+    expect(res.status).toBe(200);
     const body = (await res.json()) as { accepted: boolean; validity: string };
     expect(body.accepted).toBe(false);
     expect(body.validity).toBe("suspect");

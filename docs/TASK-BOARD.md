@@ -110,9 +110,23 @@ policies in `0001_rls.sql` are load-bearing rather than decorative.
       `src/game/headlessRun.test.ts` (8 tests: seed-identical replay, per-seed divergence, game-over
       termination with coherent stats, structural bounds, skill floor/ceiling gap, stable score-per-second
       distribution for the anti-cheat baseline). `engine.test.ts` refactored onto the shared harness.
-- [~] 3.7 API: `POST /auth/anonymous`, `GET|PATCH /me`, `POST /runs/start`, `POST /runs/:id/submit`,
-      `GET /leaderboard`, `GET /leaderboard/around`, `GET /daily`, `GET /healthz`, `GET /readyz`
-- [ ] 3.8 Anti-cheat: envelope validation, run attestation (nonce + hash chain), statistical flagging → `audit_log`
+- [x] 3.7 API: `POST /auth/anonymous`, `GET|PATCH /me`, `POST /runs/start`, `POST /runs/:id/submit`,
+      `GET /leaderboard`, `GET /leaderboard/around`, `GET /leaderboard/daily`, `GET /healthz`, `GET /readyz`
+      — commit `d2d30ea`. `src/shared/contracts.ts` (one Zod contract, client + server); hexagonal
+      `server/ports/repositories.ts` with memory (test seam) + drizzle adapters; `server/auth.ts`
+      (90-day session JWTs, 2-hour run-start tokens, sha256-hashed bearers, required-on-write /
+      optional-on-read session middleware); services `players` / `runs` / `leaderboard` / `moderation`;
+      routes `auth` / `me` / `runs` / `leaderboard` / `moderation` (+token-protected admin resolve);
+      `db/migrations/0002` composite PK on `leaderboard_daily`. `src/shared/calibration.ts` holds the
+      harness-measured p99 (253) with a drift guard in `src/game/headlessRun.test.ts`. Tests:
+      `server/routes/api.test.ts` (25 end-to-end over memory repos), `server/names.test.ts`,
+      `server/services/anticheat.test.ts`, `server/ratelimit.test.ts`, `src/shared/contracts.test.ts`
+      → verify green: 0 errors / 10 pre-existing warnings, 357 tests / 36 files, build 295.20 kB.
+      The endpoints 3.8–3.10 describe (attestation, two-tier flagging, rate limiting) shipped inside
+      this task as the run service, `services/anticheat.ts` and `ratelimit.ts`; 3.9's filter + queue
+      shipped as `server/names.ts` + `routes/moderation.ts`. Remaining for those rows: the
+      database-backed integration pass (3.11) and the client wiring (Stage 4).
+- [~] 3.8 Anti-cheat: envelope validation, run attestation (nonce + hash chain), statistical flagging → `audit_log`
 - [ ] 3.9 **Moderation**: display-name profanity filter, report endpoint, moderation queue view
 - [ ] 3.10 Rate limiting (pluggable: in-memory dev / Upstash prod) + security headers + CORS allowlist
 - [ ] 3.11 API integration tests against a test database + shared contract types

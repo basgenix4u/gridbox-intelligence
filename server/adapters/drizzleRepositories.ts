@@ -1,4 +1,4 @@
-import { and, eq, sql } from "drizzle-orm";
+import { and, desc, eq, sql } from "drizzle-orm";
 import type { Database } from "../../db/client.js";
 import { players, runs, nameReports, auditLog, leaderboardDaily } from "../../db/schema.js";
 import type {
@@ -305,6 +305,16 @@ function toReportRecord(row: typeof nameReports.$inferSelect): NameReportRecord 
 const auditRepo = (db: Database): AuditRepository => ({
   async log(entry) {
     await db.insert(auditLog).values({ actor: entry.actor, action: entry.action, meta: entry.meta });
+  },
+  async list(limit) {
+    const rows = await db.select().from(auditLog).orderBy(desc(auditLog.id)).limit(limit);
+    return rows.map((row) => ({
+      id: row.id,
+      actor: row.actor,
+      action: row.action,
+      meta: row.meta,
+      at: row.at,
+    }));
   },
 });
 

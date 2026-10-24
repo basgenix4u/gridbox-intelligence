@@ -56,12 +56,21 @@ export async function startRun(
   const startToken = await issueRunStartToken(
     { runId, playerId: player.id, mode: req.mode, day, seed, nonce },
     deps.authSecret,
+    deps.now,
   );
   return { runId, seed, nonce, mode: req.mode, day, startToken };
 }
 
 /** One attestation link per this many milliseconds of play. */
 export const ATTESTATION_INTERVAL_MS = 500;
+
+/**
+ * Wall-clock slack for the timing check. A run's claimed duration must fit
+ * inside the time that actually passed since the server issued it; this
+ * absorbs clock skew and network latency so the check flags rather than
+ * rejects (it is statistical, not structural).
+ */
+export const TIMING_SLACK_MS = 10_000;
 
 export interface AttestationCheck {
   ok: boolean;
@@ -113,6 +122,15 @@ export async function submitRun(
     throw fail("ATTESTATION_FAILED", "Run attestation did not verify", 400);
   }
 
+  // 3b. Wall-clock envelope: the claimed play time must fit inside the time
+  // the run actually had. A fabricated 60-second run submitted seconds after
+  // it started is flagged here, before any statistics are involved.
+  const elapsedMs = deps.now().getTime() - (claims.issuedAtMs ?? 0);
+  const timingAnomaly =
+    elapsedMs < req.durationMs - TIMING_SLACK_MS
+      ? `claimed ${req.durationMs}ms of play only ${Math.max(0, Math.round(elapsedMs))}ms after the run started`
+      : undefined;
+
   // 4. Plausibility — two-tier (reject the impossible, flag the implausible).
   const assessment = assessPlausibility(
     {
@@ -125,9 +143,10 @@ export async function submitRun(
     },
     { scorePerSecondP99: deps.scorePerSecondP99 },
   );
-  const reasons = attestation.anomaly ? [...assessment.reasons, attestation.anomaly] : assessment.reasons;
+  const anomalies = [attestation.anomaly, timingAnomaly].filter((a): a is string => a !== undefined);
+  const reasons = [...assessment.reasons, ...anomalies];
   let validity = assessment.verdict;
-  if (attestation.anomaly && validity === "ok") validity = "suspect";
+  if (anomalies.length > 0 && validity === "ok") validity = "suspect";
 
   // 5. Store the run either way — a rejected run is evidence, not noise.
   const stored = await deps.repos.runs.insert({

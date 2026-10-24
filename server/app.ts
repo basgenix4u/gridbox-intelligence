@@ -32,6 +32,8 @@ export interface AppOptions {
   rateLimiter?: RateLimiter;
   /** Epoch ms — injected so /healthz is deterministic. */
   startedAt?: number;
+  /** Clock — injected so time-dependent checks (run timing) are testable. */
+  now?: () => Date;
   /**
    * Mount path for the whole API. Vercel serves this function under `/api`, so
    * the incoming path is `/api/v1/healthz` while the routes are declared as
@@ -119,6 +121,7 @@ export function createApp(options: AppOptions = {}): Hono<AppBindings> {
   // ---------------------------------------------------------------- services
   // Repositories are the only persistence seam: injected in tests, built from
   // the database in production, absent (503) when nothing is configured.
+  const now = options.now ?? (() => new Date());
   const repositories: Repositories | null =
     options.repositories ?? (options.db ? createDrizzleRepositories(options.db) : null);
   const limiter = options.rateLimiter ?? createMemoryRateLimiter();
@@ -129,10 +132,10 @@ export function createApp(options: AppOptions = {}): Hono<AppBindings> {
     const runService: RunServiceDeps = {
       repos: repositories,
       authSecret: env.AUTH_SECRET ?? "",
-      now: () => new Date(),
+      now,
       scorePerSecondP99: HARNESS_SCORE_PER_SECOND_P99,
     };
-    const leaderboardService: LeaderboardServiceDeps = { repos: repositories, now: () => new Date() };
+    const leaderboardService: LeaderboardServiceDeps = { repos: repositories, now };
     const moderationService: ModerationServiceDeps = { repos: repositories };
     const loadPlayerByTokenHash = (hash: string): Promise<PlayerRecord | null> =>
       repositories.players.findByTokenHash(hash);

@@ -186,6 +186,9 @@ export function createMemoryRepositories(): Repositories {
     async log(entry) {
       audit.push({ id: audit.length + 1, actor: entry.actor, action: entry.action, meta: entry.meta, at: new Date() });
     },
+    async list(limit) {
+      return audit.slice(-limit).reverse();
+    },
   };
 
   return { players: playerRepo, runs: runRepo, reports: reportRepo, audit: auditRepo };

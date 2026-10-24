@@ -133,8 +133,18 @@ export interface ReportRepository {
   hasPendingReport(playerId: string): Promise<boolean>;
 }
 
+export interface AuditRecord {
+  id: number;
+  actor: string | null;
+  action: string;
+  meta: unknown;
+  at: Date;
+}
+
 export interface AuditRepository {
   log(entry: { actor: string | null; action: string; meta: unknown }): Promise<void>;
+  /** Newest first — the anti-cheat and moderation trail an operator reads. */
+  list(limit: number): Promise<AuditRecord[]>;
 }
 
 export interface Repositories {
