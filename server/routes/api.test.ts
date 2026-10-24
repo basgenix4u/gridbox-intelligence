@@ -562,6 +562,56 @@ describe("moderation", () => {
   });
 });
 
+describe("CORS allowlist", () => {
+  const ORIGIN = "https://gridbox-intelligence.vercel.app";
+
+  function appWithOrigins(origins: string, nodeEnv = "test") {
+    clock.ms = T0;
+    return createApp({
+      envSource: { NODE_ENV: nodeEnv, AUTH_SECRET, ALLOWED_ORIGINS: origins },
+      repositories: createMemoryRepositories(),
+      now: nowFn,
+    });
+  }
+
+  it("reflects an allowlisted origin", async () => {
+    const app = appWithOrigins(ORIGIN);
+    const res = await app.request("/v1/healthz", { headers: { origin: ORIGIN } });
+    expect(res.headers.get("access-control-allow-origin")).toBe(ORIGIN);
+  });
+
+  it("does not approve an unknown origin", async () => {
+    const app = appWithOrigins(ORIGIN);
+    const res = await app.request("/v1/healthz", { headers: { origin: "https://evil.example" } });
+    expect(res.headers.get("access-control-allow-origin")).toBeNull();
+  });
+
+  it("approves every origin in development's default", async () => {
+    const app = appWithOrigins("*");
+    const res = await app.request("/v1/healthz", { headers: { origin: "https://anything.example" } });
+    expect(res.headers.get("access-control-allow-origin")).toBe("*");
+  });
+
+  it("fails closed in production when the allowlist was never pinned", async () => {
+    // A production deployment that forgot its allowlist must not become a
+    // free-for-all: no origin is approved, and /readyz says why.
+    const app = appWithOrigins("*", "production");
+    const res = await app.request("/v1/healthz", { headers: { origin: "https://evil.example" } });
+    expect(res.headers.get("access-control-allow-origin")).toBeNull();
+    const ready = await app.request("/v1/readyz");
+    expect(ready.status).toBe(503);
+    const body = (await ready.json()) as { status: string; problems: string[] };
+    expect(body.status).toBe("degraded");
+    expect(body.problems.join(" ")).toContain("ALLOWED_ORIGINS");
+  });
+
+  it("approves the pinned origin in production", async () => {
+    const app = appWithOrigins(ORIGIN, "production");
+    const res = await app.request("/v1/healthz", { headers: { origin: ORIGIN } });
+    expect(res.headers.get("access-control-allow-origin")).toBe(ORIGIN);
+  });
+});
+
 describe("rate limiting", () => {
   it("throttles anonymous session creation per IP", async () => {
     const app = makeApp();

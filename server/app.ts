@@ -61,14 +61,20 @@ export function createApp(options: AppOptions = {}): Hono<AppBindings> {
   const envResult = readEnv(options.envSource ?? process.env);
   const env = options.env ?? envResult.env;
   const startedAt = options.startedAt ?? Date.now();
-  const origins = env.ALLOWED_ORIGINS.split(",")
+  const origins = (env.ALLOWED_ORIGINS ?? "*")
+    .split(",")
     .map((o) => o.trim())
     .filter(Boolean);
+  // A deployment whose environment did not validate — a production allowlist
+  // that was never pinned, a missing signing secret — fails *closed*: no
+  // cross-origin request is approved, while /readyz reports exactly why.
+  // Anything else would leave authenticated writes open to every origin.
+  const corsOrigin: string | string[] = !envResult.ok ? [] : origins.includes("*") ? "*" : origins;
 
   const app = new Hono<AppBindings>();
 
   app.use("*", secureHeaders());
-  app.use("*", cors({ origin: origins.includes("*") ? "*" : origins, credentials: false }));
+  app.use("*", cors({ origin: corsOrigin, credentials: false }));
   app.use("*", async (c, next) => {
     c.set("requestId", c.req.header("x-request-id") ?? crypto.randomUUID());
     c.header("x-request-id", c.get("requestId"));
