@@ -562,6 +562,34 @@ describe("moderation", () => {
   });
 });
 
+describe("health and readiness", () => {
+  it("reports the configured environment and a clean bill", async () => {
+    const app = makeApp();
+    const res = await app.request("/v1/healthz");
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { status: string; environment: string; configured: boolean };
+    expect(body).toMatchObject({ status: "ok", environment: "test", configured: true });
+  });
+
+  it("reports a misconfigured deployment as not configured, in its real environment", async () => {
+    // A production deployment missing its secrets must not claim to be
+    // "development" — the fallback env would say so, and that is a lie an
+    // operator would act on.
+    const app = createApp({
+      envSource: { NODE_ENV: "production", ALLOWED_ORIGINS: "*" },
+      repositories: createMemoryRepositories(),
+    });
+    const health = (await (await app.request("/v1/healthz")).json()) as { environment: string; configured: boolean };
+    expect(health).toMatchObject({ environment: "production", configured: false });
+
+    const ready = await app.request("/v1/readyz");
+    expect(ready.status).toBe(503);
+    const body = (await ready.json()) as { status: string; problems: string[] };
+    expect(body.status).toBe("degraded");
+    expect(body.problems.join(" ")).toContain("AUTH_SECRET");
+  });
+});
+
 describe("CORS allowlist", () => {
   const ORIGIN = "https://gridbox-intelligence.vercel.app";
 

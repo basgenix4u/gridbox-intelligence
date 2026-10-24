@@ -202,6 +202,10 @@ policies in `0001_rls.sql` are load-bearing rather than decorative.
         Verified: 320/375/390 portrait + 667/844 landscape + 768 tablet — zero horizontal
         overflow, zero clipped controls, overlay renders at every size
 - [ ] 4.1 Composition root: replace direct engine coupling in `App.tsx` with `app/` providers + typed hooks
+- [ ] 4.1b **API client + the legacy-migration trigger** — the typed client for the v1 contract
+      (session, run start/submit, boards) and the call to
+      `src/app/migrateLocalScores.ts` when a returning player sets their username
+      (3.13 built the endpoint and the client module; nothing calls them yet)
 - [ ] 4.2 Loading / error / empty / offline states; retry + exponential backoff for leaderboard sync
 - [ ] 4.3 **F2** combo rebalance (tapering window, decay to ×4) + **F3** score rebalance (kill values, graze reward)
 - [ ] 4.4 **U3** shape/pattern enemy tiers + colour-blind mode · **U6** contrast pass + `prefers-contrast` theme

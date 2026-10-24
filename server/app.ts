@@ -98,7 +98,12 @@ export function createApp(options: AppOptions = {}): Hono<AppBindings> {
       version: env.SERVICE_VERSION,
       commit: env.COMMIT_SHA,
       uptimeMs: Date.now() - startedAt,
-      environment: env.NODE_ENV,
+      // The environment as *configured*, not as salvaged: when the env fails
+      // validation the fallback re-parses without the offending keys, and
+      // reporting that would have a broken production deployment claim to be
+      // "development". /readyz is where the problems are listed.
+      environment: envResult.ok ? env.NODE_ENV : ((options.envSource ?? process.env).NODE_ENV ?? env.NODE_ENV),
+      configured: envResult.ok,
     }),
   );
 

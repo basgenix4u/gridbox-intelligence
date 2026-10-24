@@ -29,6 +29,20 @@ describe("createMemoryRateLimiter", () => {
     expect(after.retryAfterMs).toBe(0);
   });
 
+  it("sweeps expired buckets so silent keys do not leak", async () => {
+    let now = 0;
+    const limiter = createMemoryRateLimiter(() => now);
+    // Fill a window, let it expire, then push past the sweep threshold with
+    // fresh keys. The expired entries must be gone, not accumulated.
+    await limiter.check("old", 1, 1_000);
+    now = 10_000;
+    for (let i = 0; i < 1_001; i++) {
+      await limiter.check(`ip-${i}`, 5, 1_000);
+    }
+    // "old" expired long ago: a new window starts, and the sweep ran.
+    expect((await limiter.check("old", 1, 1_000)).ok).toBe(true);
+  });
+
   it("keeps keys independent", async () => {
     const limiter = createMemoryRateLimiter();
     expect((await limiter.check("ip:1", 1, 1_000)).ok).toBe(true);

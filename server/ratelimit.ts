@@ -29,11 +29,26 @@ interface Bucket {
 /** Per-instance fixed-window counter. Best-effort across lambdas. */
 export function createMemoryRateLimiter(now: () => number = Date.now): RateLimiter {
   const buckets = new Map<string, Bucket>();
+  /**
+   * A silent key would otherwise hold its bucket forever — one entry per IP a
+   * long-lived process has ever seen. Sweeping expired entries on the way in
+   * keeps the map proportional to the *active* population, and costs one pass
+   * over a small map at most every `SWEEP_THRESHOLD` new keys.
+   */
+  const SWEEP_THRESHOLD = 1_000;
+  let keysSinceSweep = 0;
+  const sweep = (t: number): void => {
+    for (const [key, bucket] of buckets) {
+      if (t >= bucket.resetAt) buckets.delete(key);
+    }
+    keysSinceSweep = 0;
+  };
   return {
     check(key, limit, windowMs): Promise<RateLimitResult> {
       const t = now();
       const bucket = buckets.get(key);
       if (!bucket || t >= bucket.resetAt) {
+        if (!bucket && ++keysSinceSweep >= SWEEP_THRESHOLD) sweep(t);
         buckets.set(key, { count: 1, resetAt: t + windowMs });
         return Promise.resolve({ ok: true, remaining: limit - 1, retryAfterMs: 0 });
       }
