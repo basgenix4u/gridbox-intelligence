@@ -6,6 +6,19 @@ import { createDatabase, type Database } from "../db/client.js";
 import type { Env } from "./env.js";
 import { readEnv } from "./env.js";
 import { errorBody, onError } from "./errors.js";
+import type { PlayerRecord, Repositories } from "./ports/repositories.js";
+import { createDrizzleRepositories } from "./adapters/drizzleRepositories.js";
+import { createMemoryRateLimiter, type RateLimiter } from "./ratelimit.js";
+import { authRoutes, createSessionMiddleware } from "./routes/auth.js";
+import { meRoutes } from "./routes/me.js";
+import { runRoutes } from "./routes/runs.js";
+import { leaderboardRoutes } from "./routes/leaderboard.js";
+import { moderationRoutes } from "./routes/moderation.js";
+import type { PlayerServiceDeps } from "./services/players.js";
+import type { RunServiceDeps } from "./services/runs.js";
+import type { LeaderboardServiceDeps } from "./services/leaderboard.js";
+import type { ModerationServiceDeps } from "./services/moderation.js";
+import { HARNESS_SCORE_PER_SECOND_P99 } from "./services/anticheat.js";
 
 export interface AppOptions {
   env?: Env;
@@ -13,6 +26,10 @@ export interface AppOptions {
   envSource?: NodeJS.ProcessEnv;
   /** Injected for tests; otherwise built lazily from `DATABASE_URL`. */
   db?: Database | null;
+  /** Injected repositories — the test seam; built from `db` when absent. */
+  repositories?: Repositories;
+  /** Injected rate limiter — the test seam; in-memory when absent. */
+  rateLimiter?: RateLimiter;
   /** Epoch ms — injected so /healthz is deterministic. */
   startedAt?: number;
   /**
@@ -26,6 +43,7 @@ export interface AppOptions {
 export interface AppBindings {
   Variables: {
     requestId: string;
+    player?: PlayerRecord;
   };
 }
 
@@ -33,8 +51,9 @@ export interface AppBindings {
  * The API application.
  *
  * Framework-agnostic on purpose: Vercel only supplies the entry point
- * (`api/[[...route]].ts`). Everything here is constructible in a test without a
- * running server, which is why `db` and `env` are injected rather than global.
+ * (`api/index.ts`). Everything here is constructible in a test without a
+ * running server, which is why `db`, `repositories` and `rateLimiter` are
+ * injected rather than global.
  */
 export function createApp(options: AppOptions = {}): Hono<AppBindings> {
   const envResult = readEnv(options.envSource ?? process.env);
@@ -96,6 +115,55 @@ export function createApp(options: AppOptions = {}): Hono<AppBindings> {
     }
     return c.json({ status: "ready", database, version: env.SERVICE_VERSION });
   });
+
+  // ---------------------------------------------------------------- services
+  // Repositories are the only persistence seam: injected in tests, built from
+  // the database in production, absent (503) when nothing is configured.
+  const repositories: Repositories | null =
+    options.repositories ?? (options.db ? createDrizzleRepositories(options.db) : null);
+  const limiter = options.rateLimiter ?? createMemoryRateLimiter();
+  const serviceAvailable = repositories !== null;
+
+  if (repositories) {
+    const playerService: PlayerServiceDeps = { repos: repositories, authSecret: env.AUTH_SECRET ?? "" };
+    const runService: RunServiceDeps = {
+      repos: repositories,
+      authSecret: env.AUTH_SECRET ?? "",
+      now: () => new Date(),
+      scorePerSecondP99: HARNESS_SCORE_PER_SECOND_P99,
+    };
+    const leaderboardService: LeaderboardServiceDeps = { repos: repositories, now: () => new Date() };
+    const moderationService: ModerationServiceDeps = { repos: repositories };
+    const loadPlayerByTokenHash = (hash: string): Promise<PlayerRecord | null> =>
+      repositories.players.findByTokenHash(hash);
+
+    const session = createSessionMiddleware({
+      authSecret: env.AUTH_SECRET,
+      loadPlayerByTokenHash,
+      serviceAvailable,
+    });
+    // Board reads are public; a session, when present, only adds "isYou".
+    const optionalSession = createSessionMiddleware({
+      authSecret: env.AUTH_SECRET,
+      loadPlayerByTokenHash,
+      serviceAvailable,
+      required: false,
+    });
+
+    api.route("/v1/auth", authRoutes({ playerService, limiter, loadPlayerByTokenHash }));
+
+    api.use("/v1/me/*", session);
+    api.route("/v1/me", meRoutes({ playerService }));
+
+    api.use("/v1/runs/*", session);
+    api.route("/v1/runs", runRoutes({ runService, limiter }));
+
+    api.use("/v1/leaderboard/*", optionalSession);
+    api.route("/v1/leaderboard", leaderboardRoutes({ leaderboardService, limiter }));
+
+    api.use("/v1/names/*", session);
+    api.route("/v1", moderationRoutes({ moderationService, limiter, moderationToken: env.MODERATION_TOKEN }));
+  }
 
   const basePath = options.basePath ?? "/";
   app.route(basePath, api);

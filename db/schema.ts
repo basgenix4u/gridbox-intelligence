@@ -1,5 +1,17 @@
 import { sql } from "drizzle-orm";
-import { bigint, bigserial, date, index, integer, jsonb, pgSchema, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import {
+  bigint,
+  bigserial,
+  date,
+  index,
+  integer,
+  jsonb,
+  pgSchema,
+  primaryKey,
+  text,
+  timestamp,
+  uuid,
+} from "drizzle-orm/pg-core";
 
 /**
  * Everything the game owns lives in a dedicated Postgres schema.
@@ -102,14 +114,20 @@ export const auditLog = gridbox.table("audit_log", {
   at: timestamp("at", { withTimezone: true }).notNull().defaultNow(),
 });
 
-export const leaderboardDaily = gridbox.table("leaderboard_daily", {
-  day: date("day").notNull(),
-  mode: runMode("mode").notNull(),
-  playerId: uuid("player_id").notNull(),
-  initials: text("initials").notNull(),
-  score: integer("score").notNull(),
-  rank: integer("rank").notNull(),
-});
+export const leaderboardDaily = gridbox.table(
+  "leaderboard_daily",
+  {
+    day: date("day").notNull(),
+    mode: runMode("mode").notNull(),
+    playerId: uuid("player_id").notNull(),
+    initials: text("initials").notNull(),
+    score: integer("score").notNull(),
+    rank: integer("rank").notNull(),
+  },
+  // Composite key: one row per player per day per mode, so the daily rollup
+  // upserts idempotently (best score of the day) instead of duplicating rows.
+  (t) => [primaryKey({ columns: [t.day, t.mode, t.playerId] })],
+);
 
 export type Player = typeof players.$inferSelect;
 export type NewPlayer = typeof players.$inferInsert;

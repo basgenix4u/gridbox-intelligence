@@ -2,6 +2,7 @@ import { beforeAll, describe, expect, it } from "vitest";
 import { installDomStubs } from "@/test/domStubs";
 import { greedyBot, randomBot } from "@/test/bots";
 import { MAX_RUN_TICKS, median, percentile, runToGameOver, signature } from "@/test/harness";
+import { HARNESS_SCORE_PER_SECOND_P99, SUSPECT_SCORE_PER_SECOND } from "@/shared/calibration";
 import { MAX_COMBO, START_LIVES } from "./constants";
 import type { RunStats } from "./types";
 
@@ -125,11 +126,14 @@ describe("anti-cheat baseline", () => {
       expect(Number.isFinite(rate)).toBe(true);
     }
     const p99 = percentile(rates, 99);
-    // The two-tier threshold is p99 + 20% margin; this band documents the
-    // distribution it is calibrated against. A run far outside it means the
-    // engine or the bots changed — re-derive the threshold before shipping.
-    expect(p99).toBeGreaterThan(50);
-    expect(p99).toBeLessThan(2000);
+    // Drift guard: the server's suspect threshold is calibrated to this
+    // measurement. If the engine or the bots got faster, the constant in
+    // src/shared/calibration.ts is stale and must be re-derived — fail here
+    // rather than silently flagging (or passing) the wrong runs.
+    expect(p99).toBeLessThanOrEqual(HARNESS_SCORE_PER_SECOND_P99);
+    // And it must not be absurdly slower either, or the filter is toothless.
+    expect(p99).toBeGreaterThan(HARNESS_SCORE_PER_SECOND_P99 * 0.5);
+    expect(SUSPECT_SCORE_PER_SECOND).toBe(304);
   });
 
   it("the distribution is reproducible — same seeds, same numbers", () => {

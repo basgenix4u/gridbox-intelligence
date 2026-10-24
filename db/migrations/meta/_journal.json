@@ -15,6 +15,13 @@
       "when": 1791621084190,
       "tag": "0001_rls",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1792804024342,
+      "tag": "0002_graceful_firestar",
+      "breakpoints": true
     }
   ]
 }

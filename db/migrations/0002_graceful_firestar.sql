@@ -1,0 +1,1 @@
+ALTER TABLE "gridbox"."leaderboard_daily" ADD CONSTRAINT "leaderboard_daily_day_mode_player_id_pk" PRIMARY KEY("day","mode","player_id");

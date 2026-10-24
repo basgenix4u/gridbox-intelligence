@@ -15,6 +15,8 @@ export const EnvSchema = z.object({
   DIRECT_URL: z.string().url().optional(),
   /** HS256 signing key for anonymous session tokens. */
   AUTH_SECRET: z.string().min(32).optional(),
+  /** Owner token guarding the moderation admin endpoints. */
+  MODERATION_TOKEN: z.string().min(16).optional(),
   /** Comma-separated allowlist, or `*` for public read endpoints only. */
   ALLOWED_ORIGINS: z.string().default("*"),
   /** Upstash Redis REST URL. Without it, rate limiting degrades to in-memory. */
