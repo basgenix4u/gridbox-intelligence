@@ -2,13 +2,13 @@
 
 > **Canonical board.** Supersedes the board embedded in `ARCHITECTURE-REVIEW.md §7`.
 > Legend: `[ ]` Pending · `[~]` **In Progress — exactly one at any time** · `[x]` Completed
-> Last updated: 2026-10-10 · Repo: [github.com/basgenix4u/gridbox-intelligence](https://github.com/basgenix4u/gridbox-intelligence)
+> Last updated: 2026-10-24 · Repo: [github.com/basgenix4u/gridbox-intelligence](https://github.com/basgenix4u/gridbox-intelligence)
 
 ## Decisions locked
 
 | Ref | Decision |
 |---|---|
-| PRD | **Absent — inferred.** `ARCHITECTURE-REVIEW.md` + `PRODUCT-TEARDOWN.md` are the derived spec |
+| PRD | **Present.** `PRD.md` is the single source of truth (added 2026-10-18); this board tracks execution against it |
 | Deliverable | **Gridbox Intelligence (the game)** |
 | Architecture | **Option B** — full-stack leaderboard |
 | Deploy | **Vercel + Supabase** · API = **Hono** on Vercel Serverless Functions |
@@ -16,6 +16,11 @@
 | Rebalance | **Approved.** Combo tapering + kill-value rebalance. Existing local scores are **preserved and tagged** as legacy scoring, not deleted |
 | Names | **Both** — long display name on the profile, 3-char initials in compact leaderboard rows → requires profanity filtering, moderation queue and report flow |
 | Supabase | **Reusing the user's existing `my-portfolio` project**, isolated in a dedicated `gridbox` schema. The portfolio's own tables, data and credentials are untouched |
+| Leaderboard shape (2026-10-24) | **Both** — daily board from `leaderboard_daily` + global best-run-per-player from `runs`. Schema already supports both; no new migration |
+| Name policy (2026-10-24) | **Filter + report + admin clear.** Normalized wordlist filter (leet/unicode-folded, 2–16 chars) at write time; `POST /names/:id/report` feeds `name_reports`; owner clears the queue via a token-protected admin endpoint (`MODERATION_TOKEN`). Satisfies acceptance criterion 5 |
+| Anti-cheat (2026-10-24) | **Two-tier.** Above harness p99 + 20% margin → `validity='suspect'` (hidden from boards, kept for analysis); only physically impossible runs (score above the theoretical maximum for their duration) → `validity='rejected'` |
+| Initials policy (2026-10-24) | Same normalized wordlist applied to the 3-char initials string, plus a small blocklist of known 3-letter combinations |
+| Local-score migration (2026-10-24) | **One-time, idempotent.** When a returning player sets their username after the upgrade, their legacy local score history is batch-uploaded (tagged `scoringVersion: 1`), deduped by client-supplied id, folded into profile totals, and a local flag prevents re-upload |
 
 ---
 
@@ -42,8 +47,8 @@
 - [x] 2.6 Serverless scaffold: `api/index.ts` (Hono) + `vercel.json` rewrite + live `/healthz` smoke test
 - [x] 2.7 Supabase: Drizzle schema in the `gridbox` schema + migrations (init + RLS), `bootstrap.sql`,
       `.env.example`, seed script — **applied and verified live**
-- [~] 2.8 **Await approval of the Stage 2 environment (verified end-to-end)**
-      — Code, tooling, live deployment and the database are all done and verified.
+- [x] 2.8 **Approved — Stage 2 environment signed off 2026-10-24.** Code, tooling, live deployment and the
+      database all verified end-to-end in a fresh session (deps installed, typecheck/lint/test/build green).
 
 ### Supabase — resolved
 
@@ -85,7 +90,9 @@ policies in `0001_rls.sql` are load-bearing rather than decorative.
 - [~] 3.3 Error boundary + RAF watchdog + dev error overlay
 - [ ] 3.4 Fix A3–A9: SSR guard, render-time side effects, RAF teardown on resize, UUID ids,
       font-metric stabilisation, storage validation
-- [ ] 3.5 Unit tests: engine rules, BFS distance fields, difficulty curves, combo/pulse/shield logic, storage, `sanitizeName`
+- [x] 3.5 Unit tests: engine rules, BFS distance fields, difficulty curves, combo/pulse logic, storage, `sanitizeName`
+      — **verified complete 2026-10-24: 240 tests / 25 files passing.** ("shield" removed from this line — no
+      shield exists in the game; it was a stale reference.)
 - [ ] 3.6 Integration tests: deterministic headless run to game-over via seeded RNG (reuse the balance harness)
 - [ ] 3.7 API: `POST /auth/anonymous`, `GET|PATCH /me`, `POST /runs/start`, `POST /runs/:id/submit`,
       `GET /leaderboard`, `GET /leaderboard/around`, `GET /daily`, `GET /healthz`, `GET /readyz`
@@ -94,7 +101,11 @@ policies in `0001_rls.sql` are load-bearing rather than decorative.
 - [ ] 3.10 Rate limiting (pluggable: in-memory dev / Upstash prod) + security headers + CORS allowlist
 - [ ] 3.11 API integration tests against a test database + shared contract types
 - [ ] 3.12 Legacy-score migration: tag existing local entries `scoringVersion: 1`, new entries `2`
-- [ ] 3.13 Bug-fix pass; all tests green; **await approval**
+- [ ] 3.13 **Local-score migration (2026-10-24)**: one-time idempotent upload of a returning player's legacy
+      local history when they set their username — batch endpoint, client-supplied ids for dedupe, entries
+      tagged `scoringVersion: 1` + `migrated`, folded into profile totals (`totalRuns`, `bestScore`), local
+      storage flag prevents re-upload; failures retry without duplicating
+- [ ] 3.14 Bug-fix pass; all tests green; **await approval**
 
 ## Stage 4 — Frontend, integration, accessibility
 
@@ -216,9 +227,10 @@ not just locally):
    real ESM and trace by specifier, so extensionless relative imports were neither bundled
    nor copied. → Explicit `.js` extensions across the server graph (`api`, `server`, `db`).
 
-**Note:** `eslint --max-warnings=0` is intentionally not yet the CI gate. The 12 outstanding warnings are
-the `react-hooks/immutability` findings quarantined to `src/app/App.tsx`, which are resolved by task 4.1.
-CI switches to `--max-warnings=0` once that lands.
+**Note:** `eslint --max-warnings=0` is intentionally not yet the CI gate. The 14 outstanding warnings are 12
+`react-hooks/immutability` findings quarantined to `src/app/App.tsx` (resolved by task 4.1) plus 2 `no-console`
+findings in `src/core/adapters/consoleLogger.ts` (intentional: the logger adapter wraps console by design — will
+be silenced with a scoped eslint-disable when the gate lands). CI switches to `--max-warnings=0` once 4.1 lands.
 
 ---
 
@@ -233,3 +245,30 @@ CI switches to `--max-warnings=0` once that lands.
 | PAT exposure in tracked files / `.git/config` | ✅ none (verified by `git grep`) |
 | Headless balance harness | ✅ 550 simulated runs across two bots |
 | Baseline pushed | ✅ `6b87f5e` (import) → `d75894f` (review) → `c2a301a` (teardown) |
+
+---
+
+## Session log — 2026-10-24 (Stage 1 re-validation + decisions)
+
+**Authentication.** GitHub PAT validated against the API (account `basgenix4u`); stored only in the git
+credential store (excluded from snapshots/logs); never printed, echoed or committed. Clone + full
+re-verification of the repository.
+
+| Check | Result |
+|---|---|
+| `npm ci` (Node 20.20.2, matches `.nvmrc`) | ✅ clean install |
+| `npm run typecheck` (app + node projects) | ✅ 0 errors |
+| `npm run lint` | ✅ 0 errors · 14 warnings (12 `react-hooks/immutability` in `App.tsx`, 2 `no-console` in `consoleLogger.ts`) |
+| `npm run test` | ✅ **240 tests / 25 files passing** (matches PRD §2.6) |
+| `npm run build` | ✅ 290.10 kB (90.07 kB gzip) single file (matches PRD) |
+| Git state | ✅ `main` clean, level with `origin/main` |
+
+**Board corrections applied this session:** 2.8 marked approved; 3.5 marked complete (verified — the stale
+"shield" reference removed); exactly one `[~]` restored (3.3); PRD marked present in the decisions table.
+
+**PRD §6 open questions — all four resolved and locked** (see Decisions locked table): leaderboard = both;
+names = filter + report queue + token-protected admin clear; anti-cheat = two-tier flag/reject; initials =
+same normalized filter + 3-letter blocklist.
+
+**New requirement captured from the user:** one-time idempotent migration of each returning player's local
+score history into the system when they set their username after the upgrade → tracked as task 3.13.

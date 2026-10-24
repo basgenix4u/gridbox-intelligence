@@ -135,6 +135,16 @@ routing, error shape and health endpoints.
 | Rebalance | Approved. Combo tapering and kill-value rebalance. **Existing local scores are preserved and tagged as legacy scoring, not deleted** |
 | Display names | Both — a long name on the profile, 3-character initials in compact leaderboard rows. This requires profanity filtering, a moderation queue and a report flow |
 | Database | Reuses the `my-portfolio` Supabase project, isolated in a dedicated `gridbox` schema. The portfolio's tables, data and credentials are untouched |
+| Leaderboard shape | **Both.** A daily board from `leaderboard_daily` and a global best-run-per-player board from `runs`. The schema already supports both — no second migration |
+| Display-name policy | Names are filtered at write time by a normalised wordlist (leet/unicode-folded, 2–16 characters). Reported names are held in `name_reports` and do not reach a board until cleared. The queue is cleared by the owner through a token-protected admin endpoint (`MODERATION_TOKEN`) — not by players |
+| Anti-cheat | **Two-tier.** A run above the 99th percentile of the balance-harness distribution plus a 20% margin is flagged `suspect` (kept, hidden from boards); only a physically impossible run — a score above the theoretical maximum for its duration — is `rejected`. No silent acceptance of implausible runs, no false bans |
+| Initials policy | The 3-character initials carry the same normalised wordlist as the long name, plus a small blocklist of known 3-letter combinations |
+| Local-score migration | **One-time and idempotent.** When a returning player sets their username after the upgrade, their legacy local score history is uploaded once — tagged `scoringVersion: 1` and `migrated`, deduplicated by client-supplied id, folded into their profile totals — and a local flag prevents re-upload. Local history is never deleted |
+| Leaderboard shape | **Both.** A daily board from `leaderboard_daily` and a global best-run-per-player board from `runs`. The schema already supports both — no second migration |
+| Display-name policy | Names are filtered at write time by a normalised wordlist (leet/unicode-folded, 2–16 characters). Reported names are held in `name_reports` and do not reach a board until cleared. The queue is cleared by the owner through a token-protected admin endpoint (`MODERATION_TOKEN`) — not by players |
+| Anti-cheat | **Two-tier.** A run above the 99th percentile of the balance-harness distribution plus a 20% margin is flagged `suspect` (kept, hidden from boards); only a physically impossible run — a score above the theoretical maximum for its duration — is `rejected`. No silent acceptance of implausible runs, no false bans |
+| Initials policy | The 3-character initials carry the same normalised wordlist as the long name, plus a small blocklist of known 3-letter combinations |
+| Local-score migration | **One-time and idempotent.** When a returning player sets their username after the upgrade, their legacy local score history is uploaded once — tagged `scoringVersion: 1` and `migrated`, deduplicated by client-supplied id, folded into their profile totals — and a local flag prevents re-upload. Local history is never deleted |
 
 ---
 
@@ -155,7 +165,7 @@ A release is v1 when all of the following are true:
 7. The accessibility pass passes: `npm run test:a11y` is green and the game is
    playable without a mouse.
 8. The README and this document describe the same product, and everything deferred
-   is in §8.
+   is in §5.
 
 ---
 
@@ -197,13 +207,18 @@ that the two never drift.
 
 ---
 
-## 6. Open questions
+## 6. Resolved questions
 
-1. **Leaderboard shape** — global, daily, or both? The schema has
-   `leaderboard_daily`; a global table would be a second migration.
-2. **Display-name policy** — what is rejected, and who clears the queue? The board
-   assumes an owner or moderator, not the player.
-3. **Anti-cheat threshold** — which statistical signals flag a run? The teardown's
-   balance harness gives the distribution to set the bar against.
-4. **Name policy for the score table** — the 3-character initial form needs its own
-   profanity filter, which is a different rule from the long name.
+All four questions this document previously left open were resolved on **2026-10-24** and
+moved into the locked decisions in §3:
+
+1. ~~Leaderboard shape~~ — **Both.** The schema already supports both; no second migration.
+2. ~~Display-name policy~~ — Normalised wordlist filter at write time; reports held in
+   `name_reports`; the owner clears the queue through a token-protected admin endpoint.
+3. ~~Anti-cheat threshold~~ — Two-tier: `suspect` above harness p99 + 20% margin,
+   `rejected` only when physically impossible.
+4. ~~Name policy for the score table~~ — The same normalised wordlist on the 3-character
+   initials, plus a small blocklist of known 3-letter combinations.
+
+A fifth decision was added the same day: the **local-score migration** (see §3) — a returning
+player's legacy local history is uploaded once, idempotently, when they set their username.
