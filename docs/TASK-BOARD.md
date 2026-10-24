@@ -180,7 +180,23 @@ policies in `0001_rls.sql` are load-bearing rather than decorative.
       local history when they set their username — batch endpoint, client-supplied ids for dedupe, entries
       tagged `scoringVersion: 1` + `migrated`, folded into profile totals (`totalRuns`, `bestScore`), local
       storage flag prevents re-upload; failures retry without duplicating
-- [~] 3.14 Bug-fix pass; all tests green; **await approval**
+- [x] 3.14 Bug-fix pass; all tests green — commit `3cc331d`, **awaiting approval**
+      — Two real defects found by probing the live deployment and re-reading the
+        new adapters: (1) `/healthz` reported the *salvaged* environment — when the
+        env fails validation, `readEnv` re-parses without the offending keys and
+        `NODE_ENV` falls back to `development`, so a broken production deployment
+        claimed to be development. It now reports the configured environment plus a
+        `configured` flag. (2) the in-memory rate limiter never released a silent
+        key, so a long-lived process accumulated one bucket per IP it had ever seen;
+        expired buckets are swept every 1000 new keys. `.env.example` documents
+        `MODERATION_TOKEN` (missing entirely) and the production invariants.
+        **Live deployment state (2026-10-24):** the API is deployed and running this
+        code, but the Vercel project has no `DATABASE_URL`, no `AUTH_SECRET` and no
+        `ALLOWED_ORIGINS` — `/readyz` reports all three as degraded and the API
+        cannot serve authenticated traffic. Env vars are a dashboard action.
+        Migrations `0002` (leaderboard composite PK) and `0003` (legacy_scores) are
+        generated and proven against PGlite but **not yet applied to the live
+        database** — both are needed before the new endpoints can work there.
 
 ## Stage 4 — Frontend, integration, accessibility
 
