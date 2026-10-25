@@ -2,7 +2,7 @@
 
 > **Canonical board.** Supersedes the board embedded in `ARCHITECTURE-REVIEW.md §7`.
 > Legend: `[ ]` Pending · `[~]` **In Progress — exactly one at any time** · `[x]` Completed
-> Last updated: 2026-10-24 · Repo: [github.com/basgenix4u/gridbox-intelligence](https://github.com/basgenix4u/gridbox-intelligence)
+> Last updated: 2026-10-25 · Repo: [github.com/basgenix4u/gridbox-intelligence](https://github.com/basgenix4u/gridbox-intelligence)
 
 ## Decisions locked
 
@@ -235,6 +235,25 @@ policies in `0001_rls.sql` are load-bearing rather than decorative.
         `DATABASE_URL`). Three regression tests cover all three shapes.
         (2) `db()`'s `options.db !== undefined` precedence was correct but unused for
         repositories — same fix, documented with the reasoning.
+      — **Live end-to-end verified** (`https://gridbox-intelligence.vercel.app`):
+        `/readyz` → 200 `ready`, database up. Anonymous session issued; run started with
+        a server-issued seed, nonce and start token; a coherent run submitted
+        `accepted:true, validity:"ok", rank:1`; **the submitted run appears on the daily
+        board and the global board**; profile totals updated. **Replay rejected** with
+        409. **Implausible runs flagged, not silently accepted** — an internally
+        inconsistent run (chips 90 → level 13, claimed 7) and a fabricated 3-minute run
+        submitted seconds after it started both came back `validity:"suspect"` via the
+        structural rules and the wall-clock envelope. CORS approves no foreign origin,
+        and `GET /v1/admin/moderation` answers 401 without the token.
+      — **Third defect, also found live:** `LeaderboardRowSchema` has always required
+        `level`, but `leaderboard_daily` had no such column, so every daily row reported
+        `level: 0` while the global board reported the right one. `0004_daily_level` adds
+        the column (default 0, so pre-existing rows keep reporting what they already
+        did); the rollup now adopts a level only on a strictly better score, and a tie
+        keeps the incumbent's. Both adapters follow the same rule; verified live — a new
+        run now shows `level: 10` on the daily board. Migration applied to the live
+        database (5 rows in `__drizzle_migrations`). The `gridbox_app` password was
+        rotated through the Neon API and Vercel's `DATABASE_URL` updated to match.
 
 ## Stage 4 — Frontend, integration, accessibility
 
