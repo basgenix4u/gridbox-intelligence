@@ -274,7 +274,27 @@ policies in `0001_rls.sql` are load-bearing rather than decorative.
         of gradient rims, calm veil labels with bloom reserved for accents, restrained glows.
         Verified: 320/375/390 portrait + 667/844 landscape + 768 tablet — zero horizontal
         overflow, zero clipped controls, overlay renders at every size
-- [~] 4.1 Composition root: replace direct engine coupling in `App.tsx` with `app/` providers + typed hooks
+- [x] 4.1 Composition root: replace direct engine coupling in `App.tsx` with `app/` providers + typed hooks
+      - `App.tsx` went from 462 lines owning everything to a composition root that holds **only
+        the phase machine**. Extracted: `useEngine`, `useLocalScores`, `useProfile`, `useMute`,
+        `useInputBindings`, `runId`.
+      - The engine exposed mutable public fields (`isTouch`, `reducedMotion`, `bestScore`,
+        `callbacks`, `Synth.muted`) that React wrote during render — the source of all 10
+        `react-hooks/immutability` findings. Added a command API (`setTouch`,
+        `setReducedMotion`, `setBestScore`, `setHaptics`, `setCallbacks`, `Synth.setMuted`) and
+        made `Synth.muted`'s setter private. **Lint is now 0 errors / 2 warnings**, both
+        pre-existing `no-console` in `consoleLogger.ts` — the `--max-warnings=0` switch planned
+        for this task is now viable.
+      - Engine callbacks now go through a ref installed **once**, instead of being reassigned
+        on every dependency change — a closure that changed between the assignment and the next
+        engine tick was silently dropped.
+      - Profile reconciliation moved from a mount effect into the `useState` initialiser: one
+        fewer render, nothing for a concurrent render to interleave with.
+      - 63 new tests (useEngine 12, useInputBindings 20, useProfile 7, useLocalScores 8,
+        useMute 6, runId 3, engine commands 6). `npm run verify`: **616 passed / 53 files**.
+      - ⚠️ **`test:a11y` has nothing to run**: `playwright test --grep @a11y` finds no
+        `playwright.config.ts`, no `e2e/` directory and no `*.spec.ts` anywhere in the repo.
+        Tracked under 4.16; the PRD §4 acceptance criterion cannot be evidenced until it exists.
 - [x] 4.1b **API client + the legacy-migration trigger** — the typed client for the v1 contract
       (session, run start/submit, boards) and the call to
       `src/app/migrateLocalScores.ts` when a returning player sets their username
@@ -296,7 +316,7 @@ policies in `0001_rls.sql` are load-bearing rather than decorative.
         had `try/finally` with no `catch`, so a throwing transport left the hook stuck in
         `"creating"` forever.
       - `npm run verify`: 553 passed / 47 files, 0 tsc errors, 0 lint errors
-- [ ] 4.2 Loading / error / empty / offline states; retry + exponential backoff for leaderboard sync
+- [~] 4.2 Loading / error / empty / offline states; retry + exponential backoff for leaderboard sync
 - [ ] 4.3 **F2** combo rebalance (tapering window, decay to ×4) + **F3** score rebalance (kill values, graze reward)
 - [ ] 4.4 **U3** shape/pattern enemy tiers + colour-blind mode · **U6** contrast pass + `prefers-contrast` theme
 - [ ] 4.5 **U1** accessible canvas (live-region HUD mirror) · **U2** modal dialog semantics + focus trap · **U10** scoped `user-select`

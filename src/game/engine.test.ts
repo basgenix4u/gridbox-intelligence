@@ -291,3 +291,70 @@ describe("pausing", () => {
     expect(game.elapsed).toBe(before.elapsed);
   });
 });
+
+describe("engine commands", () => {
+  // The engine is a 60 Hz mutable simulation, so it stays mutable by design.
+  // What it must not be is mutable *from React*: a component holding the
+  // instance and poking its fields during render is the pattern concurrent
+  // rendering punishes. These setters are the seam, and they are what
+  // `useEngine` calls instead of writing fields directly.
+
+  it("setTouch toggles the coarse-pointer flag", () => {
+    const game = makeGame(61);
+    expect(game.isTouch).toBe(false);
+    game.setTouch(true);
+    expect(game.isTouch).toBe(true);
+    game.setTouch(false);
+    expect(game.isTouch).toBe(false);
+  });
+
+  it("setReducedMotion toggles the motion preference", () => {
+    const game = makeGame(62);
+    expect(game.reducedMotion).toBe(false);
+    game.setReducedMotion(true);
+    expect(game.reducedMotion).toBe(true);
+  });
+
+  it("setBestScore feeds the in-run new-best moment", () => {
+    const game = makeGame(63);
+    expect(game.bestScore).toBe(0);
+    game.setBestScore(12_345);
+    expect(game.bestScore).toBe(12_345);
+  });
+
+  it("setHaptics toggles haptics", () => {
+    // The harness disables haptics for a headless run, so the toggle is
+    // asserted from that baseline rather than from the engine default.
+    const game = makeGame(64);
+    expect(game.haptics).toBe(false);
+    game.setHaptics(true);
+    expect(game.haptics).toBe(true);
+    game.setHaptics(false);
+    expect(game.haptics).toBe(false);
+  });
+
+  it("setCallbacks replaces the reactions wholesale", () => {
+    const game = makeGame(65);
+    const seen: string[] = [];
+    game.setCallbacks({
+      onGameOver: () => seen.push("over"),
+      onChargeReady: () => seen.push("charge"),
+    });
+    game.callbacks.onGameOver(game.stats());
+    game.callbacks.onChargeReady(true);
+    expect(seen).toEqual(["over", "charge"]);
+  });
+
+  it("commands are idempotent, so a re-run effect costs a comparison", () => {
+    // A React effect that re-runs for an unrelated reason must not dirty the
+    // engine. Only `setBestScore` is unconditional — it is set once per run,
+    // not on an effect.
+    const game = makeGame(66);
+    game.setTouch(true);
+    game.setReducedMotion(true);
+    game.setHaptics(false);
+    expect(game.isTouch).toBe(true);
+    expect(game.reducedMotion).toBe(true);
+    expect(game.haptics).toBe(false);
+  });
+});

@@ -73,7 +73,9 @@ export class Game {
 
   mode: GameMode = "attract";
   paused = false;
+  /** Coarse-pointer input. Read by the canvas; write via `setTouch`. */
   isTouch = false;
+  /** `prefers-reduced-motion`. Read by the renderer; write via `setReducedMotion`. */
   reducedMotion = false;
   haptics = true;
   /** Best score from the local table — used for the in-run "NEW BEST" moment. */
@@ -130,6 +132,45 @@ export class Game {
     onGameOver: () => undefined,
     onChargeReady: () => undefined,
   };
+
+  // --------------------------------------------------------------- commands
+  //
+  // The simulation is deliberately mutable — it runs at 60 Hz and allocating a
+  // new object per field change would be absurd. What it must *not* be is
+  // mutable from React: a component holding this instance and poking its
+  // fields during render is exactly the pattern concurrent rendering punishes.
+  // These setters are the seam. They are no-ops when the value has not
+  // changed, so a React effect that re-runs for an unrelated reason costs a
+  // comparison rather than a write.
+
+  /** Coarse-pointer input on or off. */
+  setTouch(touch: boolean): void {
+    if (this.isTouch !== touch) this.isTouch = touch;
+  }
+
+  /** Honour `prefers-reduced-motion`. */
+  setReducedMotion(reduced: boolean): void {
+    if (this.reducedMotion !== reduced) this.reducedMotion = reduced;
+  }
+
+  /** The local table's best score, for the in-run "NEW BEST" moment. */
+  setBestScore(score: number): void {
+    this.bestScore = score;
+  }
+
+  /** Haptics on or off. */
+  setHaptics(enabled: boolean): void {
+    this.haptics = enabled;
+  }
+
+  /**
+   * Installs the React-side reactions. Assigned once for the engine's
+   * lifetime; the callbacks themselves read through a ref so a change of
+   * closure never needs a re-subscribe.
+   */
+  setCallbacks(callbacks: GameCallbacks): void {
+    this.callbacks = callbacks;
+  }
 
   constructor(audio: AudioSink, rng: Rng = createRng()) {
     this.audio = audio;

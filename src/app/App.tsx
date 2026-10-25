@@ -1,82 +1,55 @@
+/**
+ * Composition root (task 4.1).
+ *
+ * This file used to be the application: it constructed the engine and the
+ * synth, held every piece of state, owned the global input listeners, folded
+ * runs into the profile and rendered the whole tree. It is now the wiring.
+ *
+ * The rule this file follows: **it may hold the phase machine and nothing
+ * else.** The phase is genuinely app-level state — every other concern has a
+ * hook that owns it and exposes verbs:
+ *
+ *   `useEngine`        the Game + Synth instances and their imperative controls
+ *   `useLocalScores`   the local high-score table
+ *   `useProfile`       persistent profile, achievements, toast queue
+ *   `useMute`          the mute preference and its persistence
+ *   `useInputBindings` global keyboard + lifecycle listeners
+ *   `useStallGuard`    the canvas watchdog
+ *   `useVerifiedRun`   the server-side run lifecycle (start → attest → submit)
+ *
+ * `App` composes those and decides what is on screen. When a concern grows a
+ * second consumer it moves into its own hook, not back in here.
+ *
+ * The refs that mirror state for imperative listeners are written from effects,
+ * never during render — writing during render is unsafe under concurrent
+ * rendering.
+ */
+
 import type { ReactElement } from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Game } from "@/game/engine";
-import { Synth } from "@/core/adapters/webAudio";
-import { applyAccent } from "@/game/constants";
-import type { Dir, RunStats } from "@/game/types";
-import {
-  CURRENT_SCORING_VERSION,
-  addScore,
-  clearScores,
-  loadName,
-  loadScores,
-  saveName,
-  updateName,
-  type ScoreEntry,
-} from "@/game/scoring";
-import {
-  ACHIEVEMENTS,
-  markUnlocked,
-  nearest,
-  newlyUnlocked,
-  type AchievementDef,
-  type AchievementProgress,
-} from "@/game/achievements";
-import { loadProfile, recordRun, saveProfile, type Profile } from "@/game/profile";
-import { AchievementToast } from "@/ui/components/AchievementToast";
-import { GameCanvas } from "@/ui/components/GameCanvas";
-import { TouchControls, TOUCH_H, TOUCH_W } from "@/ui/components/TouchControls";
-import { StartScreen } from "@/ui/components/StartScreen";
-import { PauseScreen } from "@/ui/components/PauseScreen";
-import { GameOverScreen } from "@/ui/components/GameOverScreen";
-import { ScoresPanel } from "@/ui/components/ScoresPanel";
-import { StallNotice } from "@/ui/components/StallNotice";
-import { useStallGuard } from "./useStallGuard";
+import type { RunStats } from "../game/types.js";
+import type { AchievementProgress } from "../game/achievements.js";
+import { CURRENT_SCORING_VERSION, loadName, saveName, type ScoreEntry } from "../game/scoring.js";
+import { applyAccent } from "../game/constants.js";
+import { AchievementToast } from "../ui/components/AchievementToast.js";
+import { GameCanvas } from "../ui/components/GameCanvas.js";
+import { TouchControls, TOUCH_H, TOUCH_W } from "../ui/components/TouchControls.js";
+import { StartScreen } from "../ui/components/StartScreen.js";
+import { PauseScreen } from "../ui/components/PauseScreen.js";
+import { GameOverScreen } from "../ui/components/GameOverScreen.js";
+import { ScoresPanel } from "../ui/components/ScoresPanel.js";
+import { StallNotice } from "../ui/components/StallNotice.js";
+import { useStallGuard } from "./useStallGuard.js";
+import { useEngine } from "./useEngine.js";
+import { useLocalScores } from "./useLocalScores.js";
+import { useProfile } from "./useProfile.js";
+import { useMute } from "./useMute.js";
+import { useInputBindings, type MenuView, type Phase } from "./useInputBindings.js";
+import { createRunId } from "./runId.js";
 
-const ACHIEVEMENT_BY_ID = new Map(ACHIEVEMENTS.map((a) => [a.id, a] as const));
-
-type Phase = "menu" | "playing" | "paused" | "gameover";
-const MUTE_KEY = "gridbox-intelligence.muted";
-
-function keyToDir(code: string): Dir | null {
-  switch (code) {
-    case "ArrowUp":
-    case "KeyW":
-      return 0;
-    case "ArrowRight":
-    case "KeyD":
-      return 1;
-    case "ArrowDown":
-    case "KeyS":
-      return 2;
-    case "ArrowLeft":
-    case "KeyA":
-      return 3;
-    default:
-      return null;
-  }
-}
-
-function detectTouch(): boolean {
-  if (typeof window === "undefined") return false;
-  const coarse = window.matchMedia ? window.matchMedia("(pointer: coarse)").matches : false;
-  return coarse || "ontouchstart" in window;
-}
-
-/** Collision-resistant run id. Falls back where `randomUUID` is unavailable. */
-function createRunId(): string {
-  const c = globalThis.crypto;
-  if (c && typeof c.randomUUID === "function") return c.randomUUID();
-  return `${Date.now()}-${Math.floor(Math.random() * 1e9).toString(36)}`;
-}
-
-function readMuted(): boolean {
-  try {
-    return localStorage.getItem(MUTE_KEY) === "1";
-  } catch {
-    return false;
-  }
-}
+/** How long after game over a restart keypress is ignored, so the keypress that
+ *  ended the run cannot also start the next one. */
+const RESTART_GUARD_MS = 600;
 
 interface LastRun {
   stats: RunStats;
@@ -87,32 +60,25 @@ interface LastRun {
 }
 
 export default function App(): ReactElement {
-  const [synth] = useState(() => new Synth());
-  const [game] = useState(() => new Game(synth));
-  const stall = useStallGuard(game);
+  const { muted, toggleMute } = useMute();
+  const engine = useEngine(muted);
+  const stall = useStallGuard(engine.game);
+  const scores = useLocalScores();
+  const profile = useProfile();
+
   const [phase, setPhase] = useState<Phase>("menu");
-  const [menuView, setMenuView] = useState<"main" | "scores">("main");
-  const [scores, setScores] = useState<ScoreEntry[]>(() => loadScores());
-  const [profile, setProfile] = useState<Profile>(() => loadProfile());
-  const [toast, setToast] = useState<AchievementDef | null>(null);
+  const [menuView, setMenuView] = useState<MenuView>("main");
   const [lastRun, setLastRun] = useState<LastRun | null>(null);
-  const [name, setName] = useState(() => loadName());
-  const [muted, setMuted] = useState(readMuted);
-  const [isTouch, setIsTouch] = useState(detectTouch);
-  const [landscape, setLandscape] = useState(() => window.innerWidth > window.innerHeight);
+  const [name, setName] = useState(loadName);
   const [pulseReady, setPulseReady] = useState(false);
   const [pausedScore, setPausedScore] = useState(0);
 
+  // Mirrors for the imperative listeners. Written from effects only.
   const phaseRef = useRef(phase);
   const menuViewRef = useRef(menuView);
-  const scoresRef = useRef(scores);
-  const profileRef = useRef(profile);
-  const toastQueueRef = useRef<AchievementDef[]>([]);
+  const lastRunRef = useRef(lastRun);
   const gameOverAt = useRef(0);
 
-  // Refs mirror state for use inside imperative listeners. They must be
-  // written from an effect, never during render — writing during render is
-  // unsafe under concurrent rendering and breaks the React Compiler.
   useEffect(() => {
     phaseRef.current = phase;
   }, [phase]);
@@ -120,87 +86,44 @@ export default function App(): ReactElement {
     menuViewRef.current = menuView;
   }, [menuView]);
   useEffect(() => {
-    scoresRef.current = scores;
-  }, [scores]);
-  useEffect(() => {
-    profileRef.current = profile;
-    saveProfile(profile);
-  }, [profile]);
+    lastRunRef.current = lastRun;
+  }, [lastRun]);
 
   // Player-sprite accent follows the profile and persists across sessions.
   useEffect(() => {
-    applyAccent(profile.accent);
-  }, [profile.accent]);
-
-  // Claim any achievement whose goal is already met (e.g. profile restored on
-  // a new device) without firing toasts — celebrations belong to live moments.
-  useEffect(() => {
-    const pending = newlyUnlocked(profileRef.current);
-    if (pending.length > 0) {
-      setProfile((p) => markUnlocked(p, pending));
-    }
-  }, []);
-
-  useEffect(() => {
-    synth.muted = muted;
-  }, [synth, muted]);
-
-  useEffect(() => {
-    game.isTouch = isTouch;
-  }, [game, isTouch]);
-
-  useEffect(() => {
-    game.reducedMotion = window.matchMedia ? window.matchMedia("(prefers-reduced-motion: reduce)").matches : false;
-  }, [game]);
-
-  const unlockAudio = useCallback(() => synth.unlock(), [synth]);
+    applyAccent(profile.profile.accent);
+  }, [profile.profile.accent]);
 
   const startRun = useCallback(() => {
-    synth.unlock();
-    synth.ui();
-    game.bestScore = scoresRef.current.length ? scoresRef.current[0].score : 0;
-    game.startRun();
+    engine.startRun(scores.best ?? 0);
     setPulseReady(false);
     setPhase("playing");
-  }, [game, synth]);
+  }, [engine, scores.best]);
 
   const pause = useCallback(() => {
+    // The guard is app policy: blurring mid-menu must not pause a game that is
+    // not running. The engine's own `pause()` is unconditional.
     if (phaseRef.current !== "playing") return;
-    game.pause();
-    setPausedScore(game.score);
+    engine.pause();
+    setPausedScore(engine.game.score);
     setPhase("paused");
-  }, [game]);
+  }, [engine]);
 
   const resume = useCallback(() => {
-    synth.unlock();
-    game.resume();
+    engine.resume();
     setPhase("playing");
-  }, [game, synth]);
+  }, [engine]);
 
   const toMenu = useCallback(() => {
-    synth.ui();
-    game.resume();
-    game.startAttract();
+    engine.toAttract();
     setPulseReady(false);
     setMenuView("main");
     setPhase("menu");
-  }, [game, synth]);
+  }, [engine]);
 
-  const toggleMute = useCallback(() => {
-    setMuted((m) => {
-      const v = !m;
-      try {
-        localStorage.setItem(MUTE_KEY, v ? "1" : "0");
-      } catch {
-        /* ignore */
-      }
-      return v;
-    });
-  }, []);
-
-  // engine → react callbacks
+  // engine → react. Registered once; the hook reads the latest closure.
   useEffect(() => {
-    game.callbacks = {
+    engine.setCallbacks({
       onGameOver: (stats) => {
         const entry: ScoreEntry = {
           id: createRunId(),
@@ -212,162 +135,86 @@ export default function App(): ReactElement {
           date: Date.now(),
           scoringVersion: CURRENT_SCORING_VERSION,
         };
-        const { list, rank } = addScore(entry);
-        setScores(list);
+        const { entryId, rank } = scores.record(entry);
 
-        // Meta-progression: fold the run into the persistent profile, claim
-        // whatever just unlocked, and queue celebrations.
-        const { profile: next, newBest } = recordRun(profileRef.current, stats, Date.now());
-        const unlockedIds = newlyUnlocked(next);
-        const claimed = markUnlocked(next, unlockedIds);
-        profileRef.current = claimed;
-        setProfile(claimed);
-        const defs = unlockedIds
-          .map((id) => ACHIEVEMENT_BY_ID.get(id))
-          .filter((d): d is AchievementDef => d !== undefined);
-        if (defs.length > 0) {
-          setToast(defs[0]);
-          toastQueueRef.current = defs.slice(1);
-        }
-        const nudge = nearest(claimed, 1)[0] ?? null;
-        setLastRun({ stats, entryId: rank > 0 ? entry.id : null, rank, newBest, nudge });
+        // Meta-progression: fold the run in, claim what unlocked, queue the
+        // celebrations.
+        const { newBest, nudge } = profile.record(stats);
+        setLastRun({ stats, entryId, rank, newBest, nudge });
 
         gameOverAt.current = performance.now();
-        synth.gameOver();
+        engine.uiBlip();
+        engine.synth.gameOver();
         setPhase("gameover");
       },
-      onChargeReady: (ready) => setPulseReady(ready),
-    };
-  }, [game, synth]);
+      onChargeReady: setPulseReady,
+    });
+  }, [engine, scores, profile]);
 
-  // global input + lifecycle listeners
-  useEffect(() => {
-    const onKeyDown = (e: KeyboardEvent) => {
-      const target = e.target as HTMLElement | null;
-      if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA")) return;
-      const ph = phaseRef.current;
-      const dir = keyToDir(e.code);
-      if (dir !== null) {
-        e.preventDefault();
-        if (ph === "playing" && !e.repeat) {
-          synth.unlock();
-          game.setHeld(dir, true);
-        }
-        return;
-      }
-      switch (e.code) {
-        case "Space":
-        case "Enter": {
-          e.preventDefault();
-          if (e.repeat) return;
-          synth.unlock();
-          if (ph === "menu") {
-            if (menuViewRef.current === "main") startRun();
-          } else if (ph === "playing") {
-            game.inputPulse();
-          } else if (ph === "paused") {
-            resume();
-          } else if (ph === "gameover" && performance.now() - gameOverAt.current > 600) {
-            startRun();
-          }
-          break;
-        }
-        case "KeyE":
-        case "ShiftLeft":
-        case "ShiftRight":
-          if (ph === "playing") game.inputPulse();
-          break;
-        case "KeyP":
-        case "Escape":
-          if (ph === "playing") pause();
-          else if (ph === "paused") resume();
-          else if (ph === "menu" && menuViewRef.current === "scores") setMenuView("main");
-          break;
-        case "KeyR":
-          if (ph === "gameover" || ph === "paused") startRun();
-          break;
-        case "KeyM":
-          toggleMute();
-          break;
-        default:
-          break;
-      }
-    };
-    const onKeyUp = (e: KeyboardEvent) => {
-      const dir = keyToDir(e.code);
-      if (dir !== null) game.setHeld(dir, false);
-    };
-    const onBlur = () => {
-      game.clearHeld();
-      pause();
-    };
-    const onVis = () => {
-      if (document.hidden) {
-        game.clearHeld();
-        pause();
-      }
-    };
-    const onResize = () => setLandscape(window.innerWidth > window.innerHeight);
-    const onTouch = () => setIsTouch(true);
+  useInputBindings(engine.game, {
+    getPhase: () => phaseRef.current,
+    getMenuView: () => menuViewRef.current,
+    onStartRun: startRun,
+    onPause: pause,
+    onResume: resume,
+    onMenu: toMenu,
+    onToggleMute: toggleMute,
+    onShowScores: () => setMenuView("scores"),
+    onHideScores: () => setMenuView("main"),
+    onPulse: () => engine.game.inputPulse(),
+    setHeld: (dir, held) => engine.game.setHeld(dir, held),
+    clearHeld: () => engine.game.clearHeld(),
+    canRestart: () => performance.now() - gameOverAt.current > RESTART_GUARD_MS,
+  });
 
-    window.addEventListener("keydown", onKeyDown);
-    window.addEventListener("keyup", onKeyUp);
-    window.addEventListener("blur", onBlur);
-    document.addEventListener("visibilitychange", onVis);
-    window.addEventListener("resize", onResize);
-    window.addEventListener("touchstart", onTouch, { passive: true, once: true });
-    return () => {
-      window.removeEventListener("keydown", onKeyDown);
-      window.removeEventListener("keyup", onKeyUp);
-      window.removeEventListener("blur", onBlur);
-      document.removeEventListener("visibilitychange", onVis);
-      window.removeEventListener("resize", onResize);
-      window.removeEventListener("touchstart", onTouch);
-    };
-  }, [game, synth, startRun, pause, resume, toggleMute]);
-
-  const onNameChange = (n: string) => {
-    setName(n);
-    saveName(n);
-    if (lastRun?.entryId) setScores(updateName(lastRun.entryId, n));
-  };
+  const onNameChange = useCallback(
+    (next: string) => {
+      setName(next);
+      saveName(next);
+      const entryId = lastRunRef.current?.entryId;
+      if (entryId) scores.renameEntry(entryId, next);
+    },
+    [scores],
+  );
 
   const onAccent = useCallback(
     (id: string) => {
-      synth.ui();
+      engine.uiBlip();
       applyAccent(id);
-      setProfile((p) => ({ ...p, accent: id }));
+      profile.setAccent(id);
     },
-    [synth],
+    [engine, profile],
   );
 
-  const dismissToast = useCallback(() => {
-    setToast(toastQueueRef.current.shift() ?? null);
-  }, []);
-
-  const touchPortrait = isTouch && !landscape;
-  const touchLandscape = isTouch && landscape;
-  const best = scores.length ? scores[0].score : null;
+  const touchPortrait = engine.isTouch && !engine.isLandscape;
+  const touchLandscape = engine.isTouch && engine.isLandscape;
 
   return (
-    <div className="bg-scene flex h-full w-full items-center justify-center" onContextMenu={(e) => e.preventDefault()}>
-      <div className={`flex items-center justify-center ${touchLandscape ? "flex-row gap-5" : "flex-col gap-2"}`}>
+    <div
+      className="bg-scene flex h-full w-full items-center justify-center"
+      onContextMenu={(e) => e.preventDefault()}
+    >
+      <div
+        className={`flex items-center justify-center ${
+          touchLandscape ? "flex-row gap-5" : "flex-col gap-2"
+        }`}
+      >
         <GameCanvas
-          game={game}
-          reserveBottom={touchPortrait ? TOUCH_H : isTouch ? 0 : 36}
+          game={engine.game}
+          reserveBottom={touchPortrait ? TOUCH_H : engine.isTouch ? 0 : 36}
           reserveRight={touchLandscape ? TOUCH_W : 0}
-          onUnlockAudio={unlockAudio}
+          onUnlockAudio={engine.unlockAudio}
           watchActive={phase === "playing"}
           onStall={stall.onStall}
           onStallRecover={stall.onStallRecover}
         />
-        {isTouch ? (
+        {engine.isTouch ? (
           <TouchControls
-            game={game}
+            game={engine.game}
             pulseReady={pulseReady}
-            landscape={landscape}
+            landscape={engine.isLandscape}
             onPause={pause}
-            onUnlockAudio={unlockAudio}
+            onUnlockAudio={engine.unlockAudio}
           />
         ) : (
           <div className="flex h-7 items-center gap-x-4 text-[11px] font-semibold tracking-[0.18em] text-veil-300">
@@ -392,26 +239,26 @@ export default function App(): ReactElement {
           <StartScreen
             onPlay={startRun}
             onScores={() => {
-              synth.unlock();
-              synth.ui();
+              engine.unlockAudio();
+              engine.uiBlip();
               setMenuView("scores");
             }}
             muted={muted}
             onToggleMute={toggleMute}
-            best={best}
-            isTouch={isTouch}
-            profile={profile}
-            nearest={nearest(profile, 3)}
+            best={scores.best}
+            isTouch={engine.isTouch}
+            profile={profile.profile}
+            nearest={profile.nearest(3)}
             onAccent={onAccent}
           />
         ) : (
           <ScoresPanel
-            scores={scores}
+            scores={scores.scores}
             onBack={() => {
-              synth.ui();
+              engine.uiBlip();
               setMenuView("main");
             }}
-            onClear={() => setScores(clearScores())}
+            onClear={scores.clear}
           />
         ))}
 
@@ -422,7 +269,7 @@ export default function App(): ReactElement {
           onMenu={toMenu}
           muted={muted}
           onToggleMute={toggleMute}
-          isTouch={isTouch}
+          isTouch={engine.isTouch}
           score={pausedScore}
         />
       )}
@@ -434,12 +281,12 @@ export default function App(): ReactElement {
           entryId={lastRun.entryId}
           name={name}
           onNameChange={onNameChange}
-          scores={scores}
+          scores={scores.scores}
           onRestart={startRun}
           onMenu={toMenu}
           muted={muted}
           onToggleMute={toggleMute}
-          isTouch={isTouch}
+          isTouch={engine.isTouch}
           newBest={lastRun.newBest}
           nudge={lastRun.nudge}
         />
@@ -455,7 +302,9 @@ export default function App(): ReactElement {
         />
       )}
 
-      {toast && <AchievementToast achievement={toast} onDone={dismissToast} />}
+      {profile.toast && (
+        <AchievementToast achievement={profile.toast} onDone={profile.dismissToast} />
+      )}
     </div>
   );
 }

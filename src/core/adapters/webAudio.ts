@@ -41,9 +41,20 @@ export class Synth implements AudioSink {
     return this._muted;
   }
 
-  set muted(v: boolean) {
+  /** Private: React must go through `setMuted`, not poke the field. */
+  private set muted(v: boolean) {
     this._muted = v;
     if (this.master) this.master.gain.value = v ? 0 : 0.5;
+  }
+
+  /**
+   * Mute on or off, applying the gain immediately. A method rather than a bare
+   * assignment because callers are React components: writing a field on an
+   * object a component also holds is what `react-hooks/immutability` (rightly)
+   * flags.
+   */
+  setMuted(v: boolean): void {
+    this.muted = v;
   }
 
   private tone(type: OscType, freq: number, dur: number, vol: number, slideTo?: number, delay = 0): void {
