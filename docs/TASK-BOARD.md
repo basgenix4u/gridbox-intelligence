@@ -274,11 +274,28 @@ policies in `0001_rls.sql` are load-bearing rather than decorative.
         of gradient rims, calm veil labels with bloom reserved for accents, restrained glows.
         Verified: 320/375/390 portrait + 667/844 landscape + 768 tablet — zero horizontal
         overflow, zero clipped controls, overlay renders at every size
-- [ ] 4.1 Composition root: replace direct engine coupling in `App.tsx` with `app/` providers + typed hooks
-- [ ] 4.1b **API client + the legacy-migration trigger** — the typed client for the v1 contract
+- [~] 4.1 Composition root: replace direct engine coupling in `App.tsx` with `app/` providers + typed hooks
+- [x] 4.1b **API client + the legacy-migration trigger** — the typed client for the v1 contract
       (session, run start/submit, boards) and the call to
       `src/app/migrateLocalScores.ts` when a returning player sets their username
       (3.13 built the endpoint and the client module; nothing calls them yet)
+      - `apiClient.ts` — `GameApiClient` that **never throws**: every call resolves to
+        `ApiResult<T>`. Offline short-circuits before any request; 408/429/5xx retryable,
+        4xx not; `Retry-After` → `retryAfterMs`; malformed/empty bodies reported, not
+        handed over as `undefined`.
+      - `useSession.ts` — token lifecycle: resume via `GET /v1/me`, drop a dead token,
+        else mint an anonymous session. `failed` never blocks play.
+      - `attestation.ts` — `Attestor.tick()` never awaits; hash input derived inside the
+        chained `.then` so out-of-order resolution cannot fork the chain. WebCrypto only.
+      - `useVerifiedRun.ts` — start → attest → submit as a `RunPhase` union; every failure
+        falls back to a local-only run and **preserves the local score**.
+      - `useLegacyMigration.ts` + the call in `useSession.rename()` — fires when a returning
+        player **sets a username**, one-shot per browser, never blocks the rename.
+      - Two defects found by the new tests and fixed: a retryable `getMe` failure fell
+        through and minted a *new* session (orphaning every score), and `ensureSession`
+        had `try/finally` with no `catch`, so a throwing transport left the hook stuck in
+        `"creating"` forever.
+      - `npm run verify`: 553 passed / 47 files, 0 tsc errors, 0 lint errors
 - [ ] 4.2 Loading / error / empty / offline states; retry + exponential backoff for leaderboard sync
 - [ ] 4.3 **F2** combo rebalance (tapering window, decay to ×4) + **F3** score rebalance (kill values, graze reward)
 - [ ] 4.4 **U3** shape/pattern enemy tiers + colour-blind mode · **U6** contrast pass + `prefers-contrast` theme

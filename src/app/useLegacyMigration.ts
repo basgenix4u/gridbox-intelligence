@@ -35,8 +35,13 @@ export type MigrationState =
   | { status: "done"; outcome: MigrationOutcome };
 
 export interface UseLegacyMigrationDeps {
-  /** Session token; without one there is nothing to migrate into. */
-  token: string | null;
+  /**
+   * Session token; without one there is nothing to migrate into. A function is
+   * accepted because the token is written to storage by the API client *after*
+   * this hook's deps were computed — a captured value would be `null` on the
+   * first render and stay stale.
+   */
+  token: string | null | (() => string | null);
   store?: KeyValueStore;
   /** Injected so tests never touch the network. */
   fetchImpl?: typeof fetch;
@@ -57,23 +62,29 @@ export function useLegacyMigration(deps: UseLegacyMigrationDeps): UseLegacyMigra
   // Two renames in quick succession must not race two uploads.
   const inFlight = useRef(false);
 
+  // Destructured so the callback below closes over values, not the `deps`
+  // object — `react-hooks/exhaustive-deps` can then see every one of them.
+  const { token, store, fetchImpl, baseUrl } = deps;
+
   const runMigration = useCallback(async (): Promise<MigrationOutcome> => {
     if (inFlight.current) return { status: "already-migrated" };
     inFlight.current = true;
     setState({ status: "running" });
     try {
       const outcome = await migrateLocalScores({
-        token: deps.token,
-        store: deps.store ?? createLocalStorageStore(),
-        fetchImpl: deps.fetchImpl,
-        baseUrl: deps.baseUrl,
+        token: typeof token === "function" ? token() : token,
+        // Created here rather than at render time: a fresh store per render
+        // would make this callback unstable for no reason.
+        store: store ?? createLocalStorageStore(),
+        fetchImpl,
+        baseUrl,
       });
       setState({ status: "done", outcome });
       return outcome;
     } finally {
       inFlight.current = false;
     }
-  }, [deps.baseUrl, deps.fetchImpl, deps.store, deps.token]);
+  }, [baseUrl, fetchImpl, store, token]);
 
   return { state, runMigration };
 }

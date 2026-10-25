@@ -25,12 +25,11 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { AuthResponse, Player, UpdateMeRequest } from "../shared/contracts.js";
 import type { KeyValueStore } from "../core/ports/storage.js";
 import { createLocalStorageStore } from "../core/adapters/localStorageStore.js";
+import { readToken, TOKEN_KEY, createApiClient, type ApiError, type GameApiClient } from "./apiClient.js";
 import {
-  TOKEN_KEY,
-  createApiClient,
-  type ApiError,
-  type GameApiClient,
-} from "./apiClient.js";
+  useLegacyMigration,
+  type MigrationState,
+} from "./useLegacyMigration.js";
 
 export type SessionStatus = "idle" | "creating" | "ready" | "failed";
 
@@ -47,6 +46,10 @@ export interface UseSessionDeps {
   store?: KeyValueStore;
   /** Display name to claim on first session. Absent → anonymous. */
   displayName?: string;
+  /** Injected so the migration upload never touches the network in tests. */
+  fetchImpl?: typeof fetch;
+  /** API origin; relative in the browser, absolute in tests. */
+  baseUrl?: string;
 }
 
 export interface UseSessionResult extends SessionState {
@@ -58,6 +61,12 @@ export interface UseSessionResult extends SessionState {
   reset: () => void;
   /** Last rename error, kept so the form can show it after the status resets. */
   renameError: ApiError | null;
+  /**
+   * Legacy-migration state, driven by a successful rename. Read-only for the
+   * UI: `done` with an outcome it can show, `running` while the upload is in
+   * flight. Never blocks the rename.
+   */
+  migration: MigrationState;
 }
 
 export function useSession(deps: UseSessionDeps = {}): UseSessionResult {
@@ -73,8 +82,25 @@ export function useSession(deps: UseSessionDeps = {}): UseSessionResult {
   // any future concurrent render) creating two players for one browser.
   const inFlight = useRef(false);
 
-  const ensureSession = useCallback(async (): Promise<void> => {
-    if (inFlight.current) return;
+  // Task 3.13's call site. The token is a getter: the client writes it to
+  // storage, so reading it at call time is the only way to see the current
+  // value rather than whatever existed when this render started. Memoised so
+  // `runMigration` (and therefore `rename`) keeps a stable identity.
+  const readTokenNow = useCallback(() => readToken(store), [store]);
+  const migration = useLegacyMigration({
+    token: readTokenNow,
+    store,
+    fetchImpl: deps.fetchImpl,
+    baseUrl: deps.baseUrl,
+  });
+  const runMigration = migration.runMigration;
+
+  /**
+   * The body of `ensureSession`, split out so the outer wrapper can promise
+   * that *nothing* escapes — not even a client that throws instead of
+   * returning a failed ApiResult.
+   */
+  const ensureSessionInner = useCallback(async (): Promise<void> => {
     if (store.get(TOKEN_KEY)) {
       // A token from an earlier visit: trust it until the server disagrees,
       // then fall back to a fresh anonymous session.
@@ -85,41 +111,74 @@ export function useSession(deps: UseSessionDeps = {}): UseSessionResult {
         setError(null);
         return;
       }
-      if (!me.error.retryable) {
-        // 401/404 — the token is dead (rotated secret, deleted player).
-        store.remove(TOKEN_KEY);
+      if (me.error.retryable) {
+        // A 503 or a timeout says nothing about the token — only about the
+        // server, which will be back. Minting a new session here would orphan
+        // every score this player has, so we keep the token and report the
+        // failure. `ensureSession` is safe to call again once the server is.
+        setError(me.error);
+        setStatus("failed");
+        return;
       }
+      // 401/404 — the token is dead (rotated secret, deleted player) and
+      // there is nothing left to preserve. Start over anonymously.
+      store.remove(TOKEN_KEY);
     }
 
-    inFlight.current = true;
     setStatus("creating");
+    const created = await client.createSession(deps.displayName);
+    if (created.ok) {
+      setPlayer(created.data.player);
+      setStatus("ready");
+      setError(null);
+    } else {
+      setError(created.error);
+      setStatus("failed");
+    }
+  }, [client, deps.displayName, store]);
+
+  const ensureSession = useCallback(async (): Promise<void> => {
+    if (inFlight.current) return;
     try {
-      const created = await client.createSession(deps.displayName);
-      if (created.ok) {
-        setPlayer(created.data.player);
-        setStatus("ready");
-        setError(null);
-      } else {
-        setError(created.error);
-        setStatus("failed");
-      }
+      await ensureSessionInner();
+    } catch (err) {
+      // A transport throw (fetch itself rejecting) rather than an ApiResult.
+      // The typed client never throws, but an injected client can, and an
+      // unhandled rejection here would leave the hook stuck in "creating"
+      // forever — the one state the whole design promises not to reach.
+      setError({
+        code: "OFFLINE",
+        message: err instanceof Error ? err.message : "network error",
+        retryable: true,
+      });
+      setStatus("failed");
     } finally {
       inFlight.current = false;
     }
-  }, [client, deps.displayName, store]);
+  }, [ensureSessionInner]);
 
   const rename = useCallback(
     async (body: UpdateMeRequest): Promise<boolean> => {
       const result = await client.updateMe(body);
-      if (result.ok) {
-        setPlayer(result.data);
-        setRenameError(null);
-        return true;
+      if (!result.ok) {
+        setRenameError(result.error);
+        return false;
       }
-      setRenameError(result.error);
-      return false;
+      setPlayer(result.data);
+      setRenameError(null);
+
+      // Task 3.13's other half: the moment a returning player becomes
+      // identifiable, their pre-server history is worth attaching to them. The
+      // token is read here rather than passed in because the client writes it
+      // to storage after this callback's deps were computed — a stale closure
+      // would upload nothing. Deliberately not awaited: the rename is the
+      // user's intent and the migration is housekeeping.
+      if (body.displayName !== undefined) {
+        void runMigration();
+      }
+      return true;
     },
-    [client],
+    [client, runMigration],
   );
 
   const reset = useCallback((): void => {
@@ -154,6 +213,7 @@ export function useSession(deps: UseSessionDeps = {}): UseSessionResult {
     ensureSession,
     rename,
     reset,
+    migration: migration.state,
   };
 }
 
