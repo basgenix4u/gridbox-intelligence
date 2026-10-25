@@ -366,11 +366,14 @@ policies in `0001_rls.sql` are load-bearing rather than decorative.
         each (day, mode, player) and touches only rows still reporting 0. Verified against real
         Postgres via PGlite: the stale row is corrected, an already-correct row is untouched, and a
         row whose score matches no run is left alone.
-      - ⚠️ **`0005_daily_level_backfill` is NOT yet applied to Neon.** `api.neon.tech` is
-        unreachable from this sandbox (`curl` → HTTP 000, while `console.neon.ton` and
-        `api.github.com` both respond), so the apply step could not be run. The SQL is written,
-        registered in `_journal.json` and verified against PGlite; it needs one command from an
-        environment with Neon API access.
+      - **Deployed**: `dpl_4fFEs4WmXjLuuyzfLkQHXUkeVkTP`, READY, commit `ea53561`. Live site
+        returns 200 / 314 744 bytes and the bundle contains LEADERBOARD / TODAY / ALL TIME /
+        "No runs yet" / "You are offline" — all five states shipped.
+      - ⚠️ **`0005_daily_level_backfill` is NOT yet applied to Neon.** `api.neon.tech` does not
+        resolve from this sandbox at all (`getent ahosts` empty, `curl` → HTTP 000, while
+        `console.neon.tech` and `api.github.com` both respond), so this is a network block, not a
+        credential or permission problem. The SQL is written, registered in `_journal.json` and
+        verified against PGlite; it needs one command from an environment with Neon API access.
       - Remaining for 4.8: percentile + the "you are here" slice around the player's own rank.
 - [ ] 4.9 **F1** daily seeded challenge · **F13** persistent profile · **U14** display name in settings
 - [ ] 4.10 **F15** first-run onboarding · **F16** death recap · **F17** statistics screen
