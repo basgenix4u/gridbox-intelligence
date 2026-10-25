@@ -375,6 +375,14 @@ policies in `0001_rls.sql` are load-bearing rather than decorative.
         credential or permission problem. The SQL is written, registered in `_journal.json` and
         verified against PGlite; it needs one command from an environment with Neon API access.
       - Remaining for 4.8: percentile + the "you are here" slice around the player's own rank.
+      - ⚠️ **One intermittent test failure seen and not root-caused.** A `npm run verify` run
+        reported `1 failed | 688 passed` and the failing name was not captured before the scrollback
+        was lost. 20 subsequent runs (10 full `verify`, 10 of the app/UI suites) were clean at
+        689/689, so it did not reproduce. Hardened the one test that genuinely sampled randomness
+        — `useLeaderboard`'s backoff test now injects `{jitter: 0, baseMs: 500}` and asserts the
+        retry does *not* fire at 499 ms and does at 500 ms, rather than advancing 60 s and hoping.
+        A `backoff` option was added to `useLeaderboard` to allow it. Recorded rather than dropped:
+        if it reappears, this is the note to find.
 - [ ] 4.9 **F1** daily seeded challenge · **F13** persistent profile · **U14** display name in settings
 - [ ] 4.10 **F15** first-run onboarding · **F16** death recap · **F17** statistics screen
 - [ ] 4.11 **F4** run modifiers every 3 levels · **F5** achievements · **F12** Zen/Hardcore modes

@@ -123,14 +123,28 @@ describe("useLeaderboard", () => {
           : { ok: true, data: board([ROW]) };
       },
     });
+    // jitter 0 so the retry lands at a known 500 ms rather than somewhere in
+    // [0, 500). The default full jitter is right for production — it is what
+    // stops every client retrying in lockstep — but a test that samples it is
+    // a test that can flake.
     const { result } = renderHook(() =>
-      useLeaderboard({ client, scope: "global", mode: "endless" }),
+      useLeaderboard({
+        client,
+        scope: "global",
+        mode: "endless",
+        backoff: { jitter: 0, baseMs: 500 },
+      }),
     );
     await settle();
     expect(result.current.status).toBe("error");
 
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(60_000);
+      await vi.advanceTimersByTimeAsync(499);
+    });
+    expect(result.current.status).toBe("error");
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1);
     });
     expect(result.current.status).toBe("ready");
     expect(result.current.data).toEqual([ROW]);

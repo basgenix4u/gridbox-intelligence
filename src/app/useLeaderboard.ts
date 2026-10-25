@@ -19,6 +19,7 @@
 
 import { useCallback, useMemo } from "react";
 import type { ApiError } from "./apiClient.js";
+import type { BackoffOptions } from "./backoff.js";
 import type { LeaderboardRow, RunMode } from "../shared/contracts.js";
 import type { GameApiClient } from "./apiClient.js";
 import {
@@ -38,6 +39,9 @@ export interface UseLeaderboardDeps {
   isOnline?: () => boolean;
   /** Today's key for the daily scope (YYYY-MM-DD). Injected so tests are stable. */
   day?: string;
+  /** Retry schedule override. Exposed so the schedule is tunable, and so tests
+   *  can pin the delay instead of sampling the jitter. */
+  backoff?: BackoffOptions;
 }
 
 export type LeaderboardState = ResourceState<LeaderboardRow[]>;
@@ -79,7 +83,7 @@ export function localDay(now: Date = new Date()): string {
 }
 
 export function useLeaderboard(deps: UseLeaderboardDeps): UseLeaderboardResult {
-  const { client, scope, mode, enabled = true, isOnline, day } = deps;
+  const { client, scope, mode, enabled = true, isOnline, day, backoff } = deps;
   const resolvedDay = day ?? localDay();
 
   // A new function per render is fine: `useRemoteResource` reads it through a
@@ -101,6 +105,7 @@ export function useLeaderboard(deps: UseLeaderboardDeps): UseLeaderboardResult {
     enabled,
     isOnline,
     queryKey: `${scope}:${mode}:${resolvedDay}`,
+    backoff,
   });
 
   const hasRows = useMemo(() => (resource.data?.length ?? 0) > 0, [resource.data]);
