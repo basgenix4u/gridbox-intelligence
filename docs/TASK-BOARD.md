@@ -342,13 +342,36 @@ policies in `0001_rls.sql` are load-bearing rather than decorative.
         driven by an explicit `queryKey`; and `latest.current = deps` was written during render,
         which React's immutability rule rejects because a render can be discarded — it moved to an
         effect declared before the fetch effect.
-- [~] 4.3 **F2** combo rebalance (tapering window, decay to ×4) + **F3** score rebalance (kill values, graze reward)
+- [ ] 4.3 **F2** combo rebalance (tapering window, decay to ×4) + **F3** score rebalance (kill values, graze reward)
 - [ ] 4.4 **U3** shape/pattern enemy tiers + colour-blind mode · **U6** contrast pass + `prefers-contrast` theme
 - [ ] 4.5 **U1** accessible canvas (live-region HUD mirror) · **U2** modal dialog semantics + focus trap · **U10** scoped `user-select`
 - [ ] 4.6 **U4** persistent pulse-charge meter · **U5** persistent combo meter with drain bar ·
       **U8** non-shaking score readout · **U11** stronger spawn telegraph
 - [ ] 4.7 **U7/F14** settings screen (sound, haptics, motion, contrast, colour-blind, difficulty)
-- [ ] 4.8 **F6** global + daily leaderboard UI (scope switcher, rank, percentile, "you are here" slice)
+- [~] 4.8 **F6** global + daily leaderboard UI (scope switcher, rank, percentile, "you are here" slice)
+      - `LeaderboardPanel.tsx` — scope + mode switcher as **radio groups** (arrow keys work), the
+        player's own row marked *and* labelled (colour is never the only signal), and one distinct
+        sentence per state. 18 tests.
+      - Wired through the real composition root: `useSession` supplies the token and the player id
+        that decides which row is "you"; a "Board" button on `StartScreen` reaches it. 5 App-level
+        integration tests guard the wiring a per-component suite would miss.
+      - Live verification: both boards return real rows from production — daily
+        `{"rank":1,"initials":"LEV","score":900,"level":10}` and global matching.
+      - **Defect found by that live check and fixed in code**: the daily board reported `level: 0`
+        for a player whose daily best predates migration 0004, while the global board correctly
+        showed `level: 6` for the very same run — the two boards disagreeing about one run.
+        Migration 0004's comment said the level could not be recovered from `leaderboard_daily`
+        alone, which is true of the rollup but not of `runs`, which keeps its own `day`, `mode`,
+        `player_id`, `score` and `level`. `0005_daily_level_backfill.sql` joins on the best run for
+        each (day, mode, player) and touches only rows still reporting 0. Verified against real
+        Postgres via PGlite: the stale row is corrected, an already-correct row is untouched, and a
+        row whose score matches no run is left alone.
+      - ⚠️ **`0005_daily_level_backfill` is NOT yet applied to Neon.** `api.neon.tech` is
+        unreachable from this sandbox (`curl` → HTTP 000, while `console.neon.ton` and
+        `api.github.com` both respond), so the apply step could not be run. The SQL is written,
+        registered in `_journal.json` and verified against PGlite; it needs one command from an
+        environment with Neon API access.
+      - Remaining for 4.8: percentile + the "you are here" slice around the player's own rank.
 - [ ] 4.9 **F1** daily seeded challenge · **F13** persistent profile · **U14** display name in settings
 - [ ] 4.10 **F15** first-run onboarding · **F16** death recap · **F17** statistics screen
 - [ ] 4.11 **F4** run modifiers every 3 levels · **F5** achievements · **F12** Zen/Hardcore modes

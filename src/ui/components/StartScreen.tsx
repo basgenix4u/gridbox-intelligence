@@ -8,6 +8,8 @@ import { ProgressRail } from "./ProgressRail";
 interface Props {
   onPlay: () => void;
   onScores: () => void;
+  /** Opens the live board. Optional so bare renders (tests) stay unchanged. */
+  onLeaderboard?: () => void;
   muted: boolean;
   onToggleMute: () => void;
   best: number | null;
@@ -29,6 +31,7 @@ function streakLine(profile: Profile): string {
 export function StartScreen({
   onPlay,
   onScores,
+  onLeaderboard,
   muted,
   onToggleMute,
   best,
@@ -82,6 +85,11 @@ export function StartScreen({
             <Button className="flex-1" onClick={onScores}>
               High Scores
             </Button>
+            {onLeaderboard && (
+              <Button className="flex-1" onClick={onLeaderboard}>
+                Board
+              </Button>
+            )}
             <MuteButton muted={muted} onToggle={onToggleMute} />
           </div>
           <div className="text-[11px] font-semibold tracking-[0.2em] text-veil-300">

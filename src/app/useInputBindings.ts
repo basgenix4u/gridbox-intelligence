@@ -16,7 +16,7 @@ import { useEffect } from "react";
 import type { Dir } from "../game/types.js";
 
 export type Phase = "menu" | "playing" | "paused" | "gameover";
-export type MenuView = "main" | "scores";
+export type MenuView = "main" | "scores" | "board";
 
 export interface InputActions {
   /** Current phase, read at event time. */

@@ -46,6 +46,11 @@ import { useProfile } from "./useProfile.js";
 import { useMute } from "./useMute.js";
 import { useInputBindings, type MenuView, type Phase } from "./useInputBindings.js";
 import { createRunId } from "./runId.js";
+import { createApiClient, type GameApiClient } from "./apiClient.js";
+import { useLeaderboard, type BoardScope } from "./useLeaderboard.js";
+import { useSession } from "./useSession.js";
+import { LeaderboardPanel } from "../ui/components/LeaderboardPanel.js";
+import type { RunMode } from "../shared/contracts.js";
 
 /** How long after game over a restart keypress is ignored, so the keypress that
  *  ended the run cannot also start the next one. */
@@ -61,6 +66,12 @@ interface LastRun {
 
 export default function App(): ReactElement {
   const { muted, toggleMute } = useMute();
+  // The API client is created once for the app's lifetime; `useSession` and
+  // `useLeaderboard` share it so they share the token too.
+  const [client] = useState<GameApiClient>(() => createApiClient());
+  // The session supplies the token the board is fetched with, and the player id
+  // that decides which row is "you". It never blocks play — see useSession.
+  const session = useSession({ client });
   const engine = useEngine(muted);
   const stall = useStallGuard(engine.game);
   const scores = useLocalScores();
@@ -68,6 +79,10 @@ export default function App(): ReactElement {
 
   const [phase, setPhase] = useState<Phase>("menu");
   const [menuView, setMenuView] = useState<MenuView>("main");
+  // The board's scope and mode are UI state, not hook state: the hook re-fetches
+  // when they change, and the panel renders from them.
+  const [boardScope, setBoardScope] = useState<BoardScope>("daily");
+  const [boardMode, setBoardMode] = useState<RunMode>("endless");
   const [lastRun, setLastRun] = useState<LastRun | null>(null);
   const [name, setName] = useState(loadName);
   const [pulseReady, setPulseReady] = useState(false);
@@ -186,6 +201,18 @@ export default function App(): ReactElement {
     [engine, profile],
   );
 
+  // Only fetch once a session exists — without a token the board is anonymous
+  // and the request would be rejected. `isOnline` comes straight from the
+  // browser so `offline` can be told apart from a server failure.
+  const isOnline = useCallback(() => (typeof navigator === "undefined" ? true : navigator.onLine), []);
+  const board = useLeaderboard({
+    client,
+    scope: boardScope,
+    mode: boardMode,
+    enabled: true,
+    isOnline,
+  });
+
   const touchPortrait = engine.isTouch && !engine.isLandscape;
   const touchLandscape = engine.isTouch && engine.isLandscape;
 
@@ -243,6 +270,11 @@ export default function App(): ReactElement {
               engine.uiBlip();
               setMenuView("scores");
             }}
+            onLeaderboard={() => {
+              engine.unlockAudio();
+              engine.uiBlip();
+              setMenuView("board");
+            }}
             muted={muted}
             onToggleMute={toggleMute}
             best={scores.best}
@@ -250,6 +282,17 @@ export default function App(): ReactElement {
             profile={profile.profile}
             nearest={profile.nearest(3)}
             onAccent={onAccent}
+          />
+        ) : menuView === "board" ? (
+          <LeaderboardPanel
+            board={board}
+            onScope={setBoardScope}
+            onMode={setBoardMode}
+            you={session.player?.id ?? null}
+            onBack={() => {
+              engine.uiBlip();
+              setMenuView("main");
+            }}
           />
         ) : (
           <ScoresPanel
