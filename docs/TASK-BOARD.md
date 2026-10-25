@@ -316,8 +316,33 @@ policies in `0001_rls.sql` are load-bearing rather than decorative.
         had `try/finally` with no `catch`, so a throwing transport left the hook stuck in
         `"creating"` forever.
       - `npm run verify`: 553 passed / 47 files, 0 tsc errors, 0 lint errors
-- [~] 4.2 Loading / error / empty / offline states; retry + exponential backoff for leaderboard sync
-- [ ] 4.3 **F2** combo rebalance (tapering window, decay to ×4) + **F3** score rebalance (kill values, graze reward)
+- [x] 4.2 Loading / error / empty / offline states; retry + exponential backoff for leaderboard sync
+      - `backoff.ts` — exponential growth with **full jitter** (uniform in [0, exponential)) so
+        clients that lost the connection do not all come back in lockstep and re-kill a struggling
+        server. Capped at 30 s; a server `Retry-After` always wins over the computed delay, because
+        a 429 telling us to wait is the server managing its own load. Pure functions, no timers, so
+        it is testable without fake clocks. 19 tests.
+      - `useRemoteResource.ts` — the five-state machine: `loading` / `ready` / `empty` / `error` /
+        `offline`. **Empty and error are deliberately separate**: an empty leaderboard is a fact
+        about the world and deserves an invitation, an error is a fact about the connection and
+        deserves a retry — collapsing them is how a UI tells a player with a perfect connection
+        that the board is empty. `offline` is separate from `error` because no network is not worth
+        a backoff cycle; the request is held until the `online` event fires, then issued immediately.
+        The last good data survives a failed refresh (a stale board beats a blank one), and a stale
+        response cannot overwrite a newer one. 20 tests.
+      - `useLeaderboard.ts` — the consumer that proves the state machine, over
+        `dailyBoard`/`globalBoard`. One hook for both scopes: the only difference is the endpoint
+        and the `queryKey`. Re-throws the client's `ApiError` as a real `Error` carrying
+        `retryable`/`retryAfterMs`, since the client *returns* failures and the resource hook needs
+        a rejection. 11 tests.
+      - Three defects found and fixed while testing: `backoffDelay(Infinity)` returned **0** (a hot
+        retry loop if a caller ever miscounted) — now clamped to the cap; the fetch effect depended
+        on the inline `load` identity, so every state change re-rendered and re-fetched in an
+        unbounded loop that killed the vitest worker — `load` now lives in a ref and re-fetch is
+        driven by an explicit `queryKey`; and `latest.current = deps` was written during render,
+        which React's immutability rule rejects because a render can be discarded — it moved to an
+        effect declared before the fetch effect.
+- [~] 4.3 **F2** combo rebalance (tapering window, decay to ×4) + **F3** score rebalance (kill values, graze reward)
 - [ ] 4.4 **U3** shape/pattern enemy tiers + colour-blind mode · **U6** contrast pass + `prefers-contrast` theme
 - [ ] 4.5 **U1** accessible canvas (live-region HUD mirror) · **U2** modal dialog semantics + focus trap · **U10** scoped `user-select`
 - [ ] 4.6 **U4** persistent pulse-charge meter · **U5** persistent combo meter with drain bar ·
