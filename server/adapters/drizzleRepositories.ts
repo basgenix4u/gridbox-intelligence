@@ -232,9 +232,9 @@ const runRepo = (db: SupportedDatabase): RunRepository => ({
     };
   },
   async dailyBoard(day: string, mode: RunMode, limit: number): Promise<DailyBoardEntry[]> {
-    const rows = await rowsOf<{ playerId: string; initials: string; score: number }>(
-      db.execute<{ playerId: string; initials: string; score: number }>(sql`
-      SELECT d.player_id AS "playerId", d.initials, d.score
+    const rows = await rowsOf<{ playerId: string; initials: string; score: number; level: number }>(
+      db.execute<{ playerId: string; initials: string; score: number; level: number }>(sql`
+      SELECT d.player_id AS "playerId", d.initials, d.score, d.level
       FROM gridbox.leaderboard_daily d
       WHERE d.day = ${day} AND d.mode = ${mode}
         AND NOT EXISTS (
@@ -245,7 +245,12 @@ const runRepo = (db: SupportedDatabase): RunRepository => ({
         LIMIT ${limit}
       `),
     );
-    return [...rows].map((r) => ({ playerId: r.playerId, initials: r.initials, score: Number(r.score) }));
+    return [...rows].map((r) => ({
+      playerId: r.playerId,
+      initials: r.initials,
+      score: Number(r.score),
+      level: Number(r.level ?? 0),
+    }));
   },
   async upsertDailyBest(input) {
     await db
@@ -256,6 +261,7 @@ const runRepo = (db: SupportedDatabase): RunRepository => ({
         playerId: input.playerId,
         initials: input.initials,
         score: input.score,
+        level: input.level,
         rank: 1,
       })
       .onConflictDoUpdate({
@@ -263,6 +269,10 @@ const runRepo = (db: SupportedDatabase): RunRepository => ({
         set: {
           score: sql`greatest(${leaderboardDaily.score}, ${input.score})`,
           initials: input.initials,
+          // The level belongs to the run that set the best score, so it moves
+          // only when a strictly better score arrives. A tie keeps the
+          // incumbent's level rather than silently adopting the newcomer's.
+          level: sql`CASE WHEN ${input.score} > ${leaderboardDaily.score} THEN ${input.level} ELSE ${leaderboardDaily.level} END`,
         },
       });
   },

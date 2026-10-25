@@ -196,21 +196,34 @@ describe("runs", () => {
 
   it("maintains the daily rollup on its composite primary key", async () => {
     await player(P1, "AAA");
-    await repos.runs.upsertDailyBest({ day: "2026-10-24", mode: "endless", playerId: P1, initials: "AAA", score: 500 });
-    await repos.runs.upsertDailyBest({ day: "2026-10-24", mode: "endless", playerId: P1, initials: "AAA", score: 900 });
-    await repos.runs.upsertDailyBest({ day: "2026-10-24", mode: "endless", playerId: P1, initials: "AAA", score: 300 });
+    await repos.runs.upsertDailyBest({ day: "2026-10-24", mode: "endless", playerId: P1, initials: "AAA", score: 500, level: 3 });
+    await repos.runs.upsertDailyBest({ day: "2026-10-24", mode: "endless", playerId: P1, initials: "AAA", score: 900, level: 7 });
+    await repos.runs.upsertDailyBest({ day: "2026-10-24", mode: "endless", playerId: P1, initials: "AAA", score: 300, level: 2 });
     const board = await repos.runs.dailyBoard("2026-10-24", "endless", 10);
     // One row per (day, mode, player) — the composite key is what makes the
     // upsert an upsert instead of a duplicate-row generator.
     expect(board).toHaveLength(1);
-    expect(board[0]).toMatchObject({ playerId: P1, initials: "AAA", score: 900 });
+    expect(board[0]).toMatchObject({ playerId: P1, initials: "AAA", score: 900, level: 7 });
+  });
+
+  it("carries the level of the run that set the daily best", async () => {
+    await player(P1, "AAA");
+    await repos.runs.upsertDailyBest({ day: "2026-10-24", mode: "endless", playerId: P1, initials: "AAA", score: 500, level: 3 });
+    // A strictly better score adopts its level; a worse one must not.
+    await repos.runs.upsertDailyBest({ day: "2026-10-24", mode: "endless", playerId: P1, initials: "AAA", score: 900, level: 7 });
+    await repos.runs.upsertDailyBest({ day: "2026-10-24", mode: "endless", playerId: P1, initials: "AAA", score: 100, level: 1 });
+    expect((await repos.runs.dailyBoard("2026-10-24", "endless", 10))[0]).toMatchObject({ score: 900, level: 7 });
+
+    // A tie keeps the incumbent's level rather than adopting the newcomer's.
+    await repos.runs.upsertDailyBest({ day: "2026-10-24", mode: "endless", playerId: P1, initials: "AAA", score: 900, level: 9 });
+    expect((await repos.runs.dailyBoard("2026-10-24", "endless", 10))[0]).toMatchObject({ score: 900, level: 7 });
   });
 
   it("keeps daily rows per mode and per day", async () => {
     await player(P1, "AAA");
-    await repos.runs.upsertDailyBest({ day: "2026-10-24", mode: "endless", playerId: P1, initials: "AAA", score: 500 });
-    await repos.runs.upsertDailyBest({ day: "2026-10-24", mode: "daily", playerId: P1, initials: "AAA", score: 600 });
-    await repos.runs.upsertDailyBest({ day: "2026-10-23", mode: "endless", playerId: P1, initials: "AAA", score: 700 });
+    await repos.runs.upsertDailyBest({ day: "2026-10-24", mode: "endless", playerId: P1, initials: "AAA", score: 500, level: 3 });
+    await repos.runs.upsertDailyBest({ day: "2026-10-24", mode: "daily", playerId: P1, initials: "AAA", score: 600, level: 4 });
+    await repos.runs.upsertDailyBest({ day: "2026-10-23", mode: "endless", playerId: P1, initials: "AAA", score: 700, level: 5 });
     expect(await repos.runs.dailyBoard("2026-10-24", "endless", 10)).toHaveLength(1);
     expect((await repos.runs.dailyBoard("2026-10-24", "daily", 10))[0].score).toBe(600);
     expect((await repos.runs.dailyBoard("2026-10-23", "endless", 10))[0].score).toBe(700);
@@ -219,8 +232,8 @@ describe("runs", () => {
   it("excludes held names from the daily board too", async () => {
     await player(P1, "AAA");
     await player(P2, "BBB");
-    await repos.runs.upsertDailyBest({ day: "2026-10-24", mode: "endless", playerId: P1, initials: "AAA", score: 900 });
-    await repos.runs.upsertDailyBest({ day: "2026-10-24", mode: "endless", playerId: P2, initials: "BBB", score: 100 });
+    await repos.runs.upsertDailyBest({ day: "2026-10-24", mode: "endless", playerId: P1, initials: "AAA", score: 900, level: 7 });
+    await repos.runs.upsertDailyBest({ day: "2026-10-24", mode: "endless", playerId: P2, initials: "BBB", score: 100, level: 1 });
     await repos.reports.create({ reporterPlayerId: P2, reportedPlayerId: P1, reportedName: "AAA", reason: "bad" });
     const board = await repos.runs.dailyBoard("2026-10-24", "endless", 10);
     expect(board.map((r) => r.initials)).toEqual(["BBB"]);
@@ -230,9 +243,9 @@ describe("runs", () => {
     await player(P1, "AAA");
     await player(P2, "BBB");
     await player(P3, "CCC");
-    await repos.runs.upsertDailyBest({ day: "2026-10-24", mode: "endless", playerId: P1, initials: "AAA", score: 100 });
-    await repos.runs.upsertDailyBest({ day: "2026-10-24", mode: "endless", playerId: P2, initials: "BBB", score: 900 });
-    await repos.runs.upsertDailyBest({ day: "2026-10-24", mode: "endless", playerId: P3, initials: "CCC", score: 500 });
+    await repos.runs.upsertDailyBest({ day: "2026-10-24", mode: "endless", playerId: P1, initials: "AAA", score: 100, level: 2 });
+    await repos.runs.upsertDailyBest({ day: "2026-10-24", mode: "endless", playerId: P2, initials: "BBB", score: 900, level: 8 });
+    await repos.runs.upsertDailyBest({ day: "2026-10-24", mode: "endless", playerId: P3, initials: "CCC", score: 500, level: 5 });
     const board = await repos.runs.dailyBoard("2026-10-24", "endless", 10);
     expect(board.map((r) => r.initials)).toEqual(["BBB", "CCC", "AAA"]);
   });

@@ -130,7 +130,12 @@ export function createMemoryRepositories(): Repositories {
       for (const entry of daily.values()) {
         if (entry.day !== day || entry.mode !== mode) continue;
         if (held.has(entry.playerId)) continue;
-        rows.push({ playerId: entry.playerId, initials: entry.initials, score: entry.score });
+        rows.push({
+          playerId: entry.playerId,
+          initials: entry.initials,
+          score: entry.score,
+          level: entry.level ?? 0,
+        });
       }
       return rows.sort((a, b) => b.score - a.score).slice(0, limit);
     },
@@ -140,6 +145,8 @@ export function createMemoryRepositories(): Repositories {
       if (!existing || input.score > existing.score) {
         daily.set(key, { ...input });
       }
+      // A tie keeps the incumbent row, so its level stays the level of the run
+      // that first set the best score — same rule as the SQL upsert.
     },
   };
 

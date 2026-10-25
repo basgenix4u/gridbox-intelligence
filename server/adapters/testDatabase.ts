@@ -14,11 +14,16 @@ import * as schema from "../../db/schema.js";
  *
  * The schema is built by replaying the project's own migration files, so a
  * drift between `db/schema.ts` and the migrations fails here first. Only the
- * data migrations (0000, 0002) are applied: 0001 is Row Level Security, which
- * needs roles that exist on the server, not in a test.
+ * data migrations (0000, 0002, 0003, 0004) are applied: 0001 is Row Level
+ * Security, which needs roles that exist on the server, not in a test.
  */
 
-const MIGRATIONS = ["0000_init.sql", "0002_graceful_firestar.sql", "0003_lumpy_the_hunter.sql"] as const;
+const MIGRATIONS = [
+  "0000_init.sql",
+  "0002_graceful_firestar.sql",
+  "0003_lumpy_the_hunter.sql",
+  "0004_daily_level.sql",
+] as const;
 
 /**
  * The schema namespace comes from `db/bootstrap.sql` (creating a schema needs

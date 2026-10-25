@@ -180,6 +180,7 @@ export async function submitRun(
       playerId: player.id,
       initials: player.initials,
       score: req.score,
+      level: req.level,
     });
     const around = await deps.repos.runs.around(player.id, claims.mode as RunMode, 0);
     rank = around.rank;

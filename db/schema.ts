@@ -160,6 +160,8 @@ export const leaderboardDaily = gridbox.table(
     playerId: uuid("player_id").notNull(),
     initials: text("initials").notNull(),
     score: integer("score").notNull(),
+    /** Level reached by the run that set `score` — the row describes that run. */
+    level: integer("level").notNull().default(0),
     rank: integer("rank").notNull(),
   },
   // Composite key: one row per player per day per mode, so the daily rollup

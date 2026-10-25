@@ -69,6 +69,8 @@ export interface DailyBoardEntry {
   playerId: string;
   initials: string;
   score: number;
+  /** Level reached by the run that set this score; 0 for rows predating it. */
+  level: number;
 }
 
 export interface NameReportRecord {
@@ -122,6 +124,8 @@ export interface RunRepository {
     playerId: string;
     initials: string;
     score: number;
+    /** Level of the run being folded in; kept only when it sets a new best. */
+    level: number;
   }): Promise<void>;
 }
 
